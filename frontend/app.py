@@ -109,6 +109,14 @@ def page_header(title, subtitle=""):
 def badge_html(text, kind="info"):
     st.markdown(f'<div class="badge-{kind}">{text}</div>', unsafe_allow_html=True)
 
+def fmt_pval(p: float) -> str:
+    """Formatea p-valores: notación científica si < 0.0001, decimal si no."""
+    if p is None:
+        return "N/A"
+    if p < 0.0001:
+        return f"{p:.2e}"   # e.g. 2.31e-47
+    return f"{p:.4f}"       # e.g. 0.0342
+
 # ─── API ──────────────────────────────────────────────────────────────────────
 API_BASE = "http://localhost:8000"
 
@@ -240,8 +248,21 @@ elif opcion == "📈 Módulo 1 · Técnico":
 
     with st.sidebar:
         st.markdown("### ⚙️ Parámetros")
-        ticker  = st.selectbox("Activo", list(TICKERS.keys()),
-                               format_func=lambda t: f"{t} — {TICKERS[t]}")
+        # ⭐ Selector dinámico: el usuario ingresa cualquier ticker
+        ticker_input = st.text_input(
+            "⭐ Ticker (ej: AAPL, BTC-USD, MSFT)",
+            value="AAPL",
+            placeholder="Ingresa cualquier ticker...",
+            help="Escribe el símbolo exacto de Yahoo Finance y presiona Calcular",
+            key="m1_ticker"
+        ).strip().upper()
+        ticker = ticker_input if ticker_input else "AAPL"
+        # Muestra nombre si está en el catálogo, si no lo deja libre
+        if ticker in TICKERS:
+            st.caption(f"📌 {TICKERS[ticker]}")
+        else:
+            st.caption(f"🔍 Ticker personalizado: `{ticker}`")
+
         periodo = st.selectbox("Horizonte", ["1y","2y","5y"])
         sma_c   = st.slider("SMA Corto", 5, 50, 20)
         sma_l   = st.slider("SMA Largo", 21, 200, 50)
@@ -365,7 +386,7 @@ elif opcion == "📉 Módulo 2 · Rendimientos":
 
             with c1:
                 st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.markdown(f"**Jarque-Bera** · p-valor: `{data['jarque_bera_pvalor']:.6f}`")
+                st.markdown(f"**Jarque-Bera** · p-valor: `{fmt_pval(data['jarque_bera_pvalor'])}`")
                 st.markdown("H₀: La distribución es Normal")
                 if data["es_normal_jb"]:
                     badge_html("✅ No rechazamos H₀ · Distribución Normal", "success")
@@ -375,7 +396,7 @@ elif opcion == "📉 Módulo 2 · Rendimientos":
 
             with c2:
                 st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.markdown(f"**Shapiro-Wilk** · p-valor: `{data['shapiro_pvalor']:.6f}`")
+                st.markdown(f"**Shapiro-Wilk** · p-valor: `{fmt_pval(data['shapiro_pvalor'])}`")
                 st.markdown("H₀: La distribución es Normal")
                 if data["es_normal_sw"]:
                     badge_html("✅ No rechazamos H₀ · Distribución Normal", "success")
