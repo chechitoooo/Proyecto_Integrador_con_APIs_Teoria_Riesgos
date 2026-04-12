@@ -1,0 +1,33 @@
+# Entornos virtuales
+.venv/
+.venv-2/
+env/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Archivos de entorno
+.env
+
+# VS Code / IDE
+.vscode/
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Node (si tu frontend usa Node)
+node_modules/
+dist/
+build/
+
+# Otros
+*.sqlite3
