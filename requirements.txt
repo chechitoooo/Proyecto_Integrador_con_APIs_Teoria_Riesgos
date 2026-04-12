@@ -1,0 +1,17 @@
+# Backend — Versiones fijas para reproducibilidad
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# Cálculo financiero
+yfinance==0.2.50
+pandas==2.2.3
+numpy==1.26.4
+scipy==1.14.1
+statsmodels==0.14.4
+arch==7.2.0
+
+# Utilidades
+python-dotenv==1.0.1
+httpx==0.28.1
