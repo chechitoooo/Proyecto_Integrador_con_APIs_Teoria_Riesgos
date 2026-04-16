@@ -442,7 +442,27 @@ def calcular_senales(ticker: str, rsi_up: int, rsi_down: int) -> dict:
         est = "ALCISTA" if curr["SMA50"] > curr["SMA200"] else "BAJISTA"
         col = "green" if est == "ALCISTA" else "red"
         senales.append({"indicador": "Medias", "estado": est, "descripcion": "Sin cruces nuevos", "color": col})
+# Estocástico (%K cruzando %D en zonas extremas)
+    low_min  = df["Low"].rolling(14).min()
+    high_max = df["High"].rolling(14).max()
+    df["%K"] = 100 * (df["Close"] - low_min) / (high_max - low_min)
+    df["%D"] = df["%K"].rolling(3).mean()
+    curr = df.iloc[-1]   # recalcular curr con nuevas columnas
+    prev = df.iloc[-2]
 
+    k_curr, d_curr = float(curr["%K"]), float(curr["%D"])
+    k_prev, d_prev = float(prev["%K"]), float(prev["%D"])
+
+    if k_curr < 20 and k_prev <= d_prev and k_curr > d_curr:
+        senales.append({"indicador": "Estocástico", "estado": "COMPRA",
+                        "descripcion": f"%K={k_curr:.1f} cruza %D en sobreventa", "color": "green"})
+    elif k_curr > 80 and k_prev >= d_prev and k_curr < d_curr:
+        senales.append({"indicador": "Estocástico", "estado": "VENTA",
+                        "descripcion": f"%K={k_curr:.1f} cruza %D en sobrecompra", "color": "red"})
+    else:
+        zona = "sobrecompra" if k_curr > 80 else "sobreventa" if k_curr < 20 else "zona media"
+        senales.append({"indicador": "Estocástico", "estado": "NEUTRAL",
+                        "descripcion": f"%K={k_curr:.1f} · {zona}", "color": "blue"})
     compras = sum(1 for s in senales if s["color"] == "green")
     ventas  = sum(1 for s in senales if s["color"] == "red")
     global_signal = "COMPRA" if compras > ventas else ("VENTA" if ventas > compras else "NEUTRAL")

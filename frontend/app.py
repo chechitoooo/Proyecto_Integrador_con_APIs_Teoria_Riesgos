@@ -90,7 +90,46 @@ DANGER  = "#EF4444"
 WARNING = "#F59E0B"
 INFO    = "#3B82F6"
 MUTED   = "#94A3B8"
+@st.cache_data(ttl=3600)
+def get_macro_indicators():
+    """Obtiene indicadores macro reales desde Yahoo Finance y FRED (vía yfinance)."""
+    indicadores = {}
 
+    # 1. Tasa libre de riesgo: bono del tesoro 10Y (ya funciona en el backend)
+    try:
+        import yfinance as yf
+        tnx = yf.Ticker("^TNX")
+        rf = float(tnx.history(period="5d")["Close"].iloc[-1])
+        indicadores["rf"] = {"valor": f"{rf:.2f}%", "delta": "", "ok": True}
+    except Exception:
+        indicadores["rf"] = {"valor": "N/D", "delta": "", "ok": False}
+
+    # 2. Inflación EE.UU. (CPI YoY): proxy via ETF RINF o dato hardcoded actualizable
+    try:
+        rinf = yf.Ticker("RINF")  # ProShares Inflation Expectations ETF
+        precio = float(rinf.history(period="5d")["Close"].iloc[-1])
+        indicadores["inflacion"] = {"valor": f"{precio:.2f} (RINF)", "delta": "ETF inflación", "ok": True}
+    except Exception:
+        indicadores["inflacion"] = {"valor": "~3.1%*", "delta": "dato referencial", "ok": False}
+
+    # 3. TRM COP/USD: par de divisas desde Yahoo Finance
+    try:
+        cop = yf.Ticker("COPUSD=X")
+        cop_price = float(cop.history(period="5d")["Close"].iloc[-1])
+        trm = round(1 / cop_price) if cop_price > 0 else None
+        indicadores["trm"] = {"valor": f"${trm:,}" if trm else "N/D", "delta": "COP/USD", "ok": trm is not None}
+    except Exception:
+        indicadores["trm"] = {"valor": "N/D", "delta": "", "ok": False}
+
+    # 4. Fed Funds Rate: proxy via ^IRX (T-Bill 13 semanas ≈ Fed Funds)
+    try:
+        irx = yf.Ticker("^IRX")
+        fed = float(irx.history(period="5d")["Close"].iloc[-1])
+        indicadores["fed"] = {"valor": f"{fed:.2f}%", "delta": "T-Bill 13W proxy", "ok": True}
+    except Exception:
+        indicadores["fed"] = {"valor": "N/D", "delta": "", "ok": False}
+
+    return indicadores
 PLOT_TPL = dict(
     template="plotly_white",
     paper_bgcolor="#FFFFFF",
@@ -287,9 +326,15 @@ elif opcion == "📈 Módulo 1 · Técnico":
             df = pd.DataFrame(data["datos"])
             df["fecha"] = pd.to_datetime(df["fecha"])
 
-            fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
-                                row_heights=[0.72, 0.28], vertical_spacing=0.04,
-                                subplot_titles=("Precio e Indicadores", "RSI"))
+           # ── Gráfico con 4 subplots: Precio / RSI / MACD / Estocástico ──
+            fig = make_subplots(
+                rows=4, cols=1, shared_xaxes=True,
+                row_heights=[0.50, 0.18, 0.18, 0.14],
+                vertical_spacing=0.03,
+                subplot_titles=("Precio e Indicadores", "RSI", "MACD", "Estocástico (%K / %D)")
+            )
+
+            # — Fila 1: Precio + medias + Bollinger —
             fig.add_trace(go.Scatter(x=df["fecha"], y=df["close"],
                 name="Precio", line=dict(color=PRIMARY, width=2)), row=1, col=1)
             fig.add_trace(go.Scatter(x=df["fecha"], y=df[f"sma_{sma_c}"],
@@ -301,11 +346,58 @@ elif opcion == "📈 Módulo 1 · Técnico":
             fig.add_trace(go.Scatter(x=df["fecha"], y=df["bb_lower"],
                 name="BB−", line=dict(color=MUTED, width=1, dash="dot"),
                 fill="tonexty", fillcolor="rgba(148,163,184,0.08)"), row=1, col=1)
+
+            # — Fila 2: RSI —
             fig.add_trace(go.Scatter(x=df["fecha"], y=df["rsi"],
                 name="RSI", line=dict(color="#8B5CF6", width=2)), row=2, col=1)
             fig.add_hline(y=70, line_dash="dash", line_color=DANGER,  row=2, col=1)
             fig.add_hline(y=30, line_dash="dash", line_color=SUCCESS, row=2, col=1)
-            fig.update_layout(height=600, hovermode="x unified", **PLOT_TPL)
+
+            # — Fila 3: MACD —
+            if "macd" in df.columns and df["macd"].notna().any():
+                macd_hist = df["macd"] - df["macd_signal"]
+                colors_hist = [SUCCESS if v >= 0 else DANGER for v in macd_hist]
+                fig.add_trace(go.Bar(x=df["fecha"], y=macd_hist,
+                    name="Histograma", marker_color=colors_hist, opacity=0.6), row=3, col=1)
+                fig.add_trace(go.Scatter(x=df["fecha"], y=df["macd"],
+                    name="MACD", line=dict(color=PRIMARY, width=1.5)), row=3, col=1)
+                fig.add_trace(go.Scatter(x=df["fecha"], y=df["macd_signal"],
+                    name="Señal", line=dict(color=WARNING, width=1.5, dash="dot")), row=3, col=1)
+                fig.add_hline(y=0, line_dash="dot", line_color=MUTED, line_width=1, row=3, col=1)
+
+            # — Fila 4: Estocástico —
+            # El backend ya calcula %K y %D en calcular_indicadores,
+            # pero el endpoint actual no los incluye en `datos`.
+            # Los calculamos aquí directamente desde el precio (ya tenemos df).
+            if "close" in df.columns and len(df) >= 14:
+                close_s = pd.Series(df["close"].values)
+                # Necesitamos high y low si están disponibles
+                if "high" in df.columns and "low" in df.columns:
+                    high_s = pd.Series(df["high"].values)
+                    low_s  = pd.Series(df["low"].values)
+                else:
+                    high_s = close_s
+                    low_s  = close_s
+                low_min  = low_s.rolling(14).min()
+                high_max = high_s.rolling(14).max()
+                denom = (high_max - low_min).replace(0, np.nan)
+                k_line = 100 * (close_s - low_min) / denom
+                d_line = k_line.rolling(3).mean()
+
+                fig.add_trace(go.Scatter(x=df["fecha"], y=k_line,
+                    name="%K", line=dict(color=PRIMARY, width=1.5)), row=4, col=1)
+                fig.add_trace(go.Scatter(x=df["fecha"], y=d_line,
+                    name="%D", line=dict(color=WARNING, width=1.5, dash="dot")), row=4, col=1)
+                fig.add_hline(y=80, line_dash="dash", line_color=DANGER,  line_width=0.8, row=4, col=1)
+                fig.add_hline(y=20, line_dash="dash", line_color=SUCCESS, line_width=0.8, row=4, col=1)
+
+            fig.update_layout(height=820, hovermode="x unified",
+                              showlegend=True, legend=dict(orientation="h", y=-0.05),
+                              **PLOT_TPL)
+            fig.update_yaxes(title_text="Precio",      row=1, col=1)
+            fig.update_yaxes(title_text="RSI",         row=2, col=1, range=[0, 100])
+            fig.update_yaxes(title_text="MACD",        row=3, col=1)
+            fig.update_yaxes(title_text="%K / %D",     row=4, col=1, range=[0, 100])
             st.plotly_chart(fig, use_container_width=True)
 
             with st.expander("📘 Interpretación"):
@@ -760,12 +852,22 @@ elif opcion == "🌍 Módulo 8 · Macro ★":
         calcular    = st.button("🔄 Calcular", type="primary", use_container_width=True)
 
     st.markdown("### 🌐 Indicadores Macroeconómicos")
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Tasa Libre de Riesgo (10Y)", "4.32%",   "+0.05 bps")
-    m2.metric("Inflación (CPI)",            "3.10%",   "-0.10%",  delta_color="inverse")
-    m3.metric("TRM COP/USD",                "$4,000",  "+15")
-    m4.metric("Fed Funds Rate",             "5.25%",   "Sin cambio")
+    with st.spinner("Actualizando indicadores macro..."):
+        macro = get_macro_indicators()
 
+    m1.metric("Tasa Libre de Riesgo (10Y)",
+              macro["rf"]["valor"],
+              "^TNX · Yahoo Finance" if macro["rf"]["ok"] else "⚠ sin conexión")
+    m2.metric("Inflación (referencia)",
+              macro["inflacion"]["valor"],
+              macro["inflacion"]["delta"],
+              delta_color="inverse")
+    m3.metric("TRM COP/USD",
+              macro["trm"]["valor"],
+              macro["trm"]["delta"] if macro["trm"]["ok"] else "⚠ sin conexión")
+    m4.metric("Fed Funds (proxy T-Bill)",
+              macro["fed"]["valor"],
+              "^IRX · Yahoo Finance" if macro["fed"]["ok"] else "⚠ sin conexión")
     if calcular:
         if not tickers_sel:
             st.warning("Selecciona al menos un activo.")

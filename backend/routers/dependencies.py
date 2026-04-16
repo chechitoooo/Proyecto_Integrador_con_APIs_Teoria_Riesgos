@@ -3,8 +3,8 @@ dependencies.py
 Inyección de dependencias con Depends() para servicios y configuración.
 """
 from fastapi import Depends, HTTPException, status
-from config import Settings, get_settings
-from services import financial as fin_service
+from backend.config import Settings, get_settings
+from backend.services import financial as fin_service
 
 # ─── DEPENDENCIA: Configuración global ────────────────────────────────────────
 

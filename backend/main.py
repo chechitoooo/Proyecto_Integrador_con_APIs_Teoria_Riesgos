@@ -1,18 +1,27 @@
 """
 main.py  —  Punto de entrada del backend FastAPI
-Ejecutar: uvicorn main:app --reload --port 8000
+Ejecutar: uvicorn backend.main:app --reload --port 8000
 Docs:     http://localhost:8000/docs
 """
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import time
 
-from config import get_settings
-from routers.endpoints import (
-    router_utils, router_tecnico, router_rendimientos,
-    router_garch, router_capm, router_var,
-    router_markowitz, router_senales, router_macro,
+# ─── IMPORTS CORRECTOS (modo paquete) ────────────────────────────────────────
+from backend.config import get_settings
+
+from backend.routers.endpoints import (
+    router_utils,
+    router_tecnico,
+    router_rendimientos,
+    router_garch,
+    router_capm,
+    router_var,
+    router_markowitz,
+    router_senales,
+    router_macro,
 )
 
 settings = get_settings()
@@ -42,10 +51,10 @@ API REST que expone los cálculos financieros para el dashboard de Teoría de Ri
     license_info={"name": "MIT"},
 )
 
-# ─── CORS (permite que Streamlit consuma la API) ──────────────────────────────
+# ─── CORS ─────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # En producción: ["http://localhost:8501"]
+    allow_origins=["*"],  # en producción: restringir
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -69,9 +78,15 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # ─── REGISTRO DE ROUTERS ──────────────────────────────────────────────────────
 for router in [
-    router_utils, router_tecnico, router_rendimientos,
-    router_garch, router_capm, router_var,
-    router_markowitz, router_senales, router_macro,
+    router_utils,
+    router_tecnico,
+    router_rendimientos,
+    router_garch,
+    router_capm,
+    router_var,
+    router_markowitz,
+    router_senales,
+    router_macro,
 ]:
     app.include_router(router)
 

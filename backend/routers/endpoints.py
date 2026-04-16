@@ -5,15 +5,17 @@ Total: 9 endpoints principales (supera el mínimo de 7 requerido).
 """
 from fastapi import APIRouter, Depends, Query
 from typing import Annotated
+from typing import Annotated
+from fastapi import Depends
 
-from models.schemas import (
+from backend.models.schemas import (
     TecnicoRequest, RendimientosRequest, GarchRequest, CapmRequest,
     VarRequest, MarkowitzRequest, SenalesRequest, MacroRequest,
     IndicadoresResponse, RendimientosResponse, GarchResponse,
     CapmResponse, VarResponse, MarkowitzResponse, SenalesResponse, MacroResponse,
 )
 from .dependencies import FinancialService, get_financial_service
-from services.financial import TICKERS_DEFAULT
+from backend.services.financial import TICKERS_DEFAULT
 
 ServiceDep = Annotated[FinancialService, Depends(get_financial_service)]
 
