@@ -31,3 +31,9 @@ build/
 
 # Otros
 *.sqlite3
+**/__pycache__/
+*.pyc
+.env
+*.db
+*.sqlite3
+model.joblib

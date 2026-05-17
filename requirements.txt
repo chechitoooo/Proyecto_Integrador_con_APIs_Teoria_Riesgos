@@ -1,1 +1,12 @@
-streamlitpandasnumpyscikit-learnplotlypyarrowrequestsduckdbscipystatsmodels  
+streamlit
+pandas
+numpy
+scikit-learn
+plotly
+pyarrow
+requests
+duckdb
+scipy
+statsmodels
+ 
+ 
