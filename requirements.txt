@@ -1,12 +1,37 @@
-streamlit
-pandas
-numpy
-scikit-learn
-plotly
-pyarrow
-requests
-duckdb
-scipy
-statsmodels
- 
- 
+# Core data stack
+numpy==1.26.4
+pandas==2.2.3
+scipy==1.14.1
+
+# ML / stats
+scikit-learn==1.5.2
+statsmodels==0.14.3
+arch==7.1.0
+cvxpy==1.5.3
+joblib==1.4.2
+
+# Visualization
+streamlit==1.39.0
+plotly==5.24.1
+
+# Data / APIs
+requests==2.32.3
+yfinance==0.2.43
+
+# Storage / data engineering
+duckdb==1.5.2
+pyarrow==24.0.0
+
+# Backend API
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+
+# Validation / config
+pydantic==2.9.2
+pydantic-settings==2.5.2
+sqlalchemy==2.0.35
+python-dotenv==1.2.2
+
+# Extra dependencies (required by libs)
+altair==5.5.0
+rich==13.9.4

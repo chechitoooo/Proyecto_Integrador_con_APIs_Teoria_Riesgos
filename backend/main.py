@@ -1,15 +1,17 @@
 """
-main.py  —  Punto de entrada del backend FastAPI
+main.py — Punto de entrada del backend FastAPI
 Ejecutar: uvicorn backend.main:app --reload --port 8000
 Docs:     http://localhost:8000/docs
 """
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import time
 
-# ─── IMPORTS CORRECTOS (modo paquete) ────────────────────────────────────────
+from backend.database import engine, Base
+from backend.models import orm  # asegura registro de modelos
 from backend.config import get_settings
 
 from backend.routers.endpoints import (
@@ -25,6 +27,12 @@ from backend.routers.endpoints import (
 )
 
 settings = get_settings()
+
+# ─── LIFESPAN (CREA TABLAS AL INICIAR) ────────────────────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    yield
 
 # ─── APLICACIÓN ───────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -46,9 +54,10 @@ API REST que expone los cálculos financieros para el dashboard de Teoría de Ri
 | 6 | Markowitz | `/api/markowitz/frontera` |
 | 7 | Señales ★ | `/api/senales/panel` |
 | 8 | Macro & Benchmark ★ | `/api/macro/benchmark` |
-    """,
+""",
     contact={"name": "Sergio D. Huertas / Sergio A. Prieto", "email": ""},
     license_info={"name": "MIT"},
+    lifespan=lifespan,
 )
 
 # ─── CORS ─────────────────────────────────────────────────────────────────────
@@ -60,7 +69,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ─── MIDDLEWARE: Tiempo de respuesta ──────────────────────────────────────────
+# ─── MIDDLEWARE: TIEMPO DE RESPUESTA ──────────────────────────────────────────
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
     start = time.time()
