@@ -367,25 +367,31 @@ with st.sidebar:
     <div class="sidebar-logo">
         <div style="font-size:36px;margin-bottom:6px;">📊</div>
         <h1>Dashboard<br>Financiero</h1>
-        <p>Teoría de Riesgo · 2025</p>
+        <p>Teoría de Riesgo · 2026</p>
+
+
     </div>
     <hr style="margin: 12px 0;">
     """, unsafe_allow_html=True)
 
-    opcion = st.radio("Módulo", [
-        "🏠  Portada",
-        "📈  Módulo 1 · Técnico",
-        "📉  Módulo 2 · Rendimientos",
-        "🌊  Módulo 3 · ARCH/GARCH",
-        "⚖️  Módulo 4 · CAPM y Beta",
-        "🛡️  Módulo 5 · VaR y CVaR",
-        "🎯  Módulo 6 · Markowitz",
-        "🚦  Módulo 7 · Señales ★",
-        "🌍  Módulo 8 · Macro ★",
-        "📐  Módulo 9 · Renta Fija ★",
-        "🎲  Módulo 10 · Opciones ★",
-        "⚠️  Módulo 11 · Stress Testing ★",
-    ], label_visibility="collapsed")
+    opcion = st.radio(
+    "Módulo",
+    [
+        "🏠 Portada",
+        "📈 Módulo 1 · Técnico",
+        "📉 Módulo 2 · Rendimientos",
+        "🌊 Módulo 3 · ARCH/GARCH",
+        "⚖️ Módulo 4 · CAPM y Beta",
+        "🛡️ Módulo 5 · VaR y CVaR",
+        "🎯 Módulo 6 · Markowitz",
+        "🚦 Módulo 7 · Señales ★",
+        "🌍 Módulo 8 · Macro ★",
+        "📐 Módulo 9 · Renta Fija ★",
+        "🎲 Módulo 10 · Opciones ★",
+        "⚠️ Módulo 11 · Stress Testing ★"
+    ],
+    label_visibility="collapsed"
+)
 
     st.markdown("<hr>", unsafe_allow_html=True)
     health = api_get("/api/utils/health")
@@ -1639,502 +1645,148 @@ elif opcion == "🌍  Módulo 8 · Macro ★":
     else:
         st.markdown('<div class="badge-info">👆 Selecciona los activos del portafolio y pulsa <b>Calcular</b>.</div>', unsafe_allow_html=True)
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  MÓDULO 9 — RENTA FIJA ★
-# ══════════════════════════════════════════════════════════════════════════════
-elif opcion == "📐  Módulo 9 · Renta Fija ★":
-    page_header("📐 Módulo 9 · Renta Fija",
-                "Curva de rendimiento, Nelson-Siegel, Duración y Convexidad del bono sintético")
-
+# ──────────────────────────────────────────────────────────────────────────────
+# MÓDULO 9 — RENTA FIJA (Nelson-Siegel + Duración)
+# ──────────────────────────────────────────────────────────────────────────────
+elif opcion == "📐 Módulo 9 · Renta Fija ★":
+    page_header("📐 Módulo 9 · Renta Fija", "Curva de Rendimiento Nelson-Siegel y Duración del Bono")
+    
     with st.sidebar:
-        st.markdown("### ⚙️ Parámetros")
-        cupon = st.number_input("Cupón anual (%)", value=5.0, step=0.25, key="m9_c")
-        vencimiento = st.slider("Vencimiento (años)", 1, 30, 10, key="m9_t")
-        valor_nominal = st.number_input("Valor nominal (USD)", value=1000, step=100, key="m9_vn")
-        frecuencia = st.selectbox("Frecuencia de cupón", ["Anual","Semestral","Trimestral"], key="m9_freq")
+        st.markdown("### ⚙️ Parámetros Bono")
+        cupon = st.number_input("Cupón anual (%)", value=5.0, step=0.25)
+        vencimiento = st.slider("Vencimiento (años)", 1, 30, 10)
+        valor_nominal = st.number_input("Valor Nominal", value=1000, step=100)
         calcular = st.button("🔄 Calcular", type="primary", use_container_width=True)
 
-    freq_map = {"Anual": 1, "Semestral": 2, "Trimestral": 4}
-    freq_n = freq_map[frecuencia]
+    st.markdown('<div class="autoload-banner">⚡ Análisis de Renta Fija: Curva de tasas y riesgo de tasa</div>', unsafe_allow_html=True)
+    
+    # 1. Obtener Curva Nelson-Siegel
+    with st.spinner("Obteniendo curva de rendimientos..."):
+        curva_data = api_get("/api/renta-fija/curva")
 
-    st.markdown(f'<div class="autoload-banner">⚡ Bono sintético · Cupón {cupon}% · Vencimiento {vencimiento}a · Nominal ${valor_nominal:,}</div>', unsafe_allow_html=True)
-
-    # ── Curva de rendimiento ─────────────────────────────────────────────────
-    section_title("📈", "Curva de Rendimiento (FRED)")
-    curva_data = api_get("/api/curva-rendimiento/puntos") or {}
-    if curva_data and "puntos" in curva_data:
-        puntos = pd.DataFrame(curva_data["puntos"])
+    if curva_data:
         fig_curva = go.Figure()
-        fig_curva.add_trace(go.Scatter(
-            x=puntos["vencimiento_anios"], y=puntos["tasa_pct"],
-            mode="markers+lines", name="Spot FRED",
-            line=dict(color=CYAN, width=2),
-            marker=dict(size=9, color=PRIMARY, line=dict(color=CYAN, width=2))
-        ))
-        if "ns_ajustada" in puntos.columns:
-            fig_curva.add_trace(go.Scatter(
-                x=puntos["vencimiento_anios"], y=puntos["ns_ajustada"],
-                mode="lines", name="Nelson-Siegel ajustada",
-                line=dict(color=WARNING, width=2.5, dash="dot")
-            ))
-        fig_curva.update_layout(
-            title="Curva Spot de Tesoros US (FRED)",
-            xaxis_title="Vencimiento (años)", yaxis_title="Tasa (%)",
-            height=380, **PLOT_TPL)
+        # Puntos reales (FRED)
+        if "puntos" in curva_data:
+            df_puntos = pd.DataFrame(curva_data["puntos"])
+            fig_curva.add_trace(go.Scatter(x=df_puntos["vencimiento"], y=df_puntos["tasa"], 
+                                           mode="markers", name="Tasas Observadas (FRED)",
+                                           marker=dict(size=10, color=PRIMARY)))
+        
+        # Curva ajustada (Modelo)
+        if "curva_ajustada" in curva_data:
+            df_modelo = pd.DataFrame(curva_data["curva_ajustada"])
+            fig_curva.add_trace(go.Scatter(x=df_modelo["vencimiento"], y=df_modelo["tasa"], 
+                                           mode="lines", name="Modelo Nelson-Siegel",
+                                           line=dict(color=ACCENT, width=3, dash="dash")))
+        
+        fig_curva.update_layout(title="Curva de Rendimiento Spot", 
+                                xaxis_title="Vencimiento (Años)", yaxis_title="Tasa (%)",
+                                height=400, **PLOT_TPL)
         st.plotly_chart(fig_curva, use_container_width=True)
+        
+        st.markdown("📌 **Nelson-Siegel:** Modelo paramétrico que ajusta la curva de tasas usando 4 coeficientes (β₀, β₁, β₂, λ).")
 
-        # Forma de la curva
-        tasas = puntos["tasa_pct"].tolist()
-        if len(tasas) >= 2:
-            spread = tasas[-1] - tasas[0]
-            if spread > 0.5:
-                forma = "Normal (pendiente positiva) — señal de expansión económica."
-                badge_html(f"📊 Curva {forma}", "success")
-            elif spread < -0.5:
-                forma = "Invertida (pendiente negativa) — señal de posible recesión."
-                badge_html(f"⚠️ Curva {forma}", "error")
-            else:
-                forma = "Plana — transición o incertidumbre en política monetaria."
-                badge_html(f"🔵 Curva {forma}", "info")
-    else:
-        badge_html("ℹ️ Agrega el endpoint /api/curva-rendimiento/puntos al backend (retorna puntos FRED: DGS3MO, DGS1, DGS2, DGS5, DGS10, DGS30).", "warning")
-
-    # ── Nelson-Siegel ────────────────────────────────────────────────────────
-    if calcular or st.session_state.get("m9_ns"):
-        if calcular:
-            with st.spinner("Ajustando Nelson-Siegel y calculando bono..."):
-                ns_data = api_get("/api/curva-rendimiento/nelson-siegel")
-                bono_data = api_post("/api/bono/duracion", {
-                    "cupon_pct": cupon, "vencimiento": vencimiento,
-                    "valor_nominal": valor_nominal, "frecuencia": freq_n
-                })
-            if ns_data:
-                st.session_state["m9_ns"] = ns_data
-            if bono_data:
-                st.session_state["m9_bono"] = bono_data
-
-        ns_data = st.session_state.get("m9_ns")
-        bono_data = st.session_state.get("m9_bono")
-
-        if ns_data:
-            section_title("🧮", "Ajuste Nelson-Siegel")
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("β₀ (nivel largo plazo)", f"{ns_data.get('beta0', 0):.4f}")
-            c2.metric("β₁ (pendiente)", f"{ns_data.get('beta1', 0):.4f}")
-            c3.metric("β₂ (curvatura)", f"{ns_data.get('beta2', 0):.4f}")
-            c4.metric("λ (velocidad decay)", f"{ns_data.get('lambda_', 0):.4f}")
-            rmse = ns_data.get("rmse")
-            if rmse is not None:
-                badge_html(f"📐 RMSE del ajuste Nelson-Siegel: {rmse:.6f} — {'excelente ajuste.' if rmse < 0.001 else 'ajuste aceptable.' if rmse < 0.01 else 'revisar datos.'}", "info")
-
+    # 2. Calcular Bono Específico
+    if calcular:
+        payload = {"cupon_pct": cupon, "vencimiento": vencimiento, 
+                   "valor_nominal": valor_nominal, "frecuencia": 2} # Frecuencia semestral fija
+        
+        bono_data = api_post("/api/renta-fija/bono", payload)
+        
         if bono_data:
-            section_title("💼", "Bono Sintético — Duración y Convexidad")
-            b1, b2, b3, b4 = st.columns(4)
-            b1.metric("Precio del Bono", f"${bono_data.get('precio', 0):,.4f}")
-            b2.metric("Duración de Macaulay (D)", f"{bono_data.get('duracion_macaulay', 0):.4f} años")
-            b3.metric("Duración Modificada (D*)", f"{bono_data.get('duracion_modificada', 0):.4f}")
-            b4.metric("Convexidad (C)", f"{bono_data.get('convexidad', 0):.4f}")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Precio Bono", f"${bono_data.get('precio', 0):,.2f}")
+            c2.metric("Duración Macaulay", f"{bono_data.get('duracion_macaulay', 0):.2f} años")
+            c3.metric("Duración Modificada", f"{bono_data.get('duracion_modificada', 0):.2f}")
+            c4.metric("Convexidad", f"{bono_data.get('convexidad', 0):.2f}")
+            
+            st.info("💡 **Interpretación:** Una duración modificada de {:.2f} implica que si las tasas suben 1%, el precio del bono caerá aproximadamente un {:.2f}%.".format(
+                bono_data.get("duracion_modificada", 0), bono_data.get("duracion_modificada", 0)))
 
-            ytm = bono_data.get("ytm_pct", 0)
-
-            # Sensibilidad del precio a shocks de tasa
-            section_title("📉", "Sensibilidad del Precio ante Shocks de Tasa")
-            shocks_bp = [-200, -100, -50, 50, 100, 200]
-            D_mod = bono_data.get("duracion_modificada", 0)
-            C = bono_data.get("convexidad", 0)
-            precio_base = bono_data.get("precio", 1000)
-            rows = []
-            for shock in shocks_bp:
-                dy = shock / 10000
-                dp_lineal = -D_mod * dy * 100
-                dp_convex = (-D_mod * dy + 0.5 * C * dy**2) * 100
-                precio_lineal = precio_base * (1 + dp_lineal / 100)
-                precio_convex = precio_base * (1 + dp_convex / 100)
-                rows.append({
-                    "Shock (pb)": f"{shock:+d}",
-                    "ΔP/P Lineal (%)": f"{dp_lineal:.3f}%",
-                    "ΔP/P con Convexidad (%)": f"{dp_convex:.3f}%",
-                    "Precio Lineal": f"${precio_lineal:,.2f}",
-                    "Precio c/ Convexidad": f"${precio_convex:,.2f}",
-                })
-            st.dataframe(pd.DataFrame(rows).set_index("Shock (pb)"), use_container_width=True)
-
-            # Gráfico de sensibilidad
-            shocks_cont = list(range(-300, 310, 10))
-            dp_lin = [-D_mod * s/10000 * 100 for s in shocks_cont]
-            dp_cvx = [(-D_mod * s/10000 + 0.5 * C * (s/10000)**2) * 100 for s in shocks_cont]
-            fig_sens = go.Figure()
-            fig_sens.add_trace(go.Scatter(x=shocks_cont, y=dp_lin, name="Lineal (Duración)",
-                line=dict(color=WARNING, width=2, dash="dot")))
-            fig_sens.add_trace(go.Scatter(x=shocks_cont, y=dp_cvx, name="Con Convexidad",
-                line=dict(color=PRIMARY, width=2.5)))
-            fig_sens.add_vline(x=0, line_dash="dot", line_color=MUTED, opacity=0.5)
-            fig_sens.add_hline(y=0, line_dash="dot", line_color=MUTED, opacity=0.5)
-            fig_sens.update_layout(
-                title="Sensibilidad Precio del Bono vs Shock de Tasa",
-                xaxis_title="Shock de tasa (pb)", yaxis_title="ΔP/P (%)",
-                height=360, **PLOT_TPL)
-            st.plotly_chart(fig_sens, use_container_width=True)
-
-            with st.expander("📖 Interpretación Duración y Convexidad"):
-                st.markdown(f"""
-**Duración de Macaulay (D = {bono_data.get('duracion_macaulay',0):.2f} años):** Tiempo promedio ponderado en que se recuperan los flujos. Mide la vida "económica" del bono.
-
-**Duración Modificada (D* = {bono_data.get('duracion_modificada',0):.2f}):** Sensibilidad % del precio ante un cambio de 1% en la tasa. Un shock de +100pb produce aproximadamente -{D_mod:.2f}% en precio.
-
-**Convexidad (C = {C:.4f}):** Curvatura de la relación precio-tasa. Un bono con mayor convexidad sube más ante caídas de tasa y baja menos ante subidas — siempre beneficioso.
-
-**Aproximación de segundo orden:** ΔP/P ≈ −D* · Δy + ½ · C · (Δy)²
-                """)
-    else:
-        st.markdown('<div class="badge-info">👆 Configura el bono en el panel izquierdo y pulsa <b>Calcular</b>.</div>', unsafe_allow_html=True)
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  MÓDULO 10 — OPCIONES ★ (Black-Scholes + Greeks)
-# ══════════════════════════════════════════════════════════════════════════════
-elif opcion == "🎲  Módulo 10 · Opciones ★":
-    from scipy.stats import norm as sci_norm
-
-    page_header("🎲 Módulo 10 · Opciones — Black-Scholes y los 5 Greeks",
-                "Valoración teórica sobre activos del portafolio — precio actual como subyacente")
-
+# ──────────────────────────────────────────────────────────────────────────────
+# MÓDULO 10 — OPCIONES (Black-Scholes)
+# ──────────────────────────────────────────────────────────────────────────────
+elif opcion == "🎲 Módulo 10 · Opciones ★":
+    page_header("🎲 Módulo 10 · Opciones", "Valoración Black-Scholes y las 5 Griegas")
+    
     with st.sidebar:
-        st.markdown("### ⚙️ Parámetros")
-        ticker_op = st.selectbox("Activo subyacente", TICKER_LIST, key="m10_ticker")
-        strike    = st.number_input("Strike K (USD)", value=150.0, step=1.0, key="m10_k")
-        T_dias    = st.slider("Vencimiento T (días)", 7, 365, 30, key="m10_t")
-        r_op      = st.number_input("Tasa libre de riesgo r (%)", value=4.5, step=0.1, key="m10_r") / 100
-        tipo_op   = st.radio("Tipo de opción", ["Call", "Put", "Ambas"], key="m10_tipo", horizontal=True)
-        usar_vol_garch = st.checkbox("Usar vol. EWMA/GARCH (Mód.3)", value=True, key="m10_garch")
-        calcular  = st.button("🔄 Valorar", type="primary", use_container_width=True)
-
-    T_anios = T_dias / 365
-
-    st.markdown(f'<div class="autoload-banner">⚡ Black-Scholes · {ticker_op} · K={strike} · T={T_dias}d · r={r_op:.2%}</div>', unsafe_allow_html=True)
-
-    with st.expander("📖 Justificación: ¿Por qué opciones hipotéticas?", expanded=False):
-        st.markdown("""
-No se requiere data real de derivados. Las opciones se valoran sobre los **mismos activos del portafolio del Mód.1**,
-usando el precio actual como subyacente S, la volatilidad estimada del Mód.3 (EWMA o GARCH),
-y un Strike K y vencimiento T elegidos por el usuario.
-
-Esto permite practicar la mecánica completa de Black-Scholes sin depender de APIs comerciales de opciones.
-
-**Paridad put-call (verificada numéricamente):** C − P = S − K·e^(−rT)
-        """)
-
-    if calcular or st.session_state.get("m10_data"):
-        if calcular:
-            with st.spinner("Obteniendo precio y volatilidad..."):
-                bsdata = api_post("/api/opciones/blackscholes", {
-                    "ticker": ticker_op, "strike": strike,
-                    "vencimiento_dias": T_dias, "tasa_libre_riesgo": r_op,
-                    "usar_vol_garch": usar_vol_garch
-                })
-            if bsdata:
-                st.session_state["m10_data"] = bsdata
-
-        bsdata = st.session_state.get("m10_data")
-
-        if bsdata:
-            S   = bsdata.get("precio_spot", strike)
-            vol = bsdata.get("sigma", 0.20)
-
-            # ── Cálculo BS en frontend (redundante con backend, para validación) ──
-            d1 = (np.log(S / strike) + (r_op + 0.5 * vol**2) * T_anios) / (vol * np.sqrt(T_anios)) if T_anios > 0 and vol > 0 else 0
-            d2 = d1 - vol * np.sqrt(T_anios)
-            call_price = S * sci_norm.cdf(d1) - strike * np.exp(-r_op * T_anios) * sci_norm.cdf(d2)
-            put_price  = strike * np.exp(-r_op * T_anios) * sci_norm.cdf(-d2) - S * sci_norm.cdf(-d1)
-            parity_diff = abs((call_price - put_price) - (S - strike * np.exp(-r_op * T_anios)))
-
-            # Greeks
-            delta_call = sci_norm.cdf(d1)
-            delta_put  = sci_norm.cdf(d1) - 1
-            gamma      = sci_norm.pdf(d1) / (S * vol * np.sqrt(T_anios)) if T_anios > 0 and vol > 0 else 0
-            vega       = S * np.sqrt(T_anios) * sci_norm.pdf(d1) / 100
-            theta_call = (-(S * sci_norm.pdf(d1) * vol) / (2 * np.sqrt(T_anios))
-                          - r_op * strike * np.exp(-r_op * T_anios) * sci_norm.cdf(d2)) / 365 if T_anios > 0 else 0
-            theta_put  = (-(S * sci_norm.pdf(d1) * vol) / (2 * np.sqrt(T_anios))
-                          + r_op * strike * np.exp(-r_op * T_anios) * sci_norm.cdf(-d2)) / 365 if T_anios > 0 else 0
-            rho_call   = strike * T_anios * np.exp(-r_op * T_anios) * sci_norm.cdf(d2) / 100
-            rho_put    = -strike * T_anios * np.exp(-r_op * T_anios) * sci_norm.cdf(-d2) / 100
-
-            # ── Precios y paridad ────────────────────────────────────────────
-            section_title("💰", "Precios Black-Scholes")
-            p1, p2, p3, p4, p5 = st.columns(5)
-            p1.metric("Precio Spot (S)", f"${S:,.2f}")
-            p2.metric("Strike (K)", f"${strike:,.2f}")
-            p3.metric("Volatilidad (σ)", f"{vol:.2%}", help="EWMA/GARCH del Mód.3")
-            if tipo_op in ["Call", "Ambas"]:
-                p4.metric("Call Price", f"${call_price:,.4f}")
-            if tipo_op in ["Put", "Ambas"]:
-                p5.metric("Put Price", f"${put_price:,.4f}")
-
-            if parity_diff < 0.01:
-                badge_html(f"✅ Paridad Put-Call verificada · C − P − (S − Ke^(−rT)) = {parity_diff:.6f} ≈ 0", "success")
-            else:
-                badge_html(f"⚠️ Discrepancia en paridad Put-Call: {parity_diff:.4f}", "warning")
-
-            # ── Tabla de Greeks ──────────────────────────────────────────────
-            section_title("🔬", "Los Cinco Greeks")
-            greeks_df = pd.DataFrame({
-                "Greek": ["Delta (Δ)", "Gamma (Γ)", "Vega (ν)", "Theta (Θ)", "Rho (ρ)"],
-                "Sentido": ["∂V/∂S", "∂²V/∂S²", "∂V/∂σ", "∂V/∂t", "∂V/∂r"],
-                "Call": [f"{delta_call:.4f}", f"{gamma:.6f}", f"{vega:.4f}", f"{theta_call:.4f}", f"{rho_call:.4f}"],
-                "Put":  [f"{delta_put:.4f}", f"{gamma:.6f}", f"{vega:.4f}", f"{theta_put:.4f}", f"{rho_put:.4f}"],
-                "Interpretación": [
-                    "Cambio en precio por $1 en S",
-                    "Curvatura de Delta vs S",
-                    "Cambio por +1% en volatilidad",
-                    "Decay de valor por día",
-                    "Cambio por +1% en tasa libre de riesgo"
-                ]
-            })
-            st.dataframe(greeks_df.set_index("Greek"), use_container_width=True)
-
-            # ── Gráficos de payoff y precio vs spot ─────────────────────────
-            section_title("📊", "Visualizaciones")
-            spots = np.linspace(max(1, S * 0.6), S * 1.4, 200)
-            fig_bs = make_subplots(rows=1, cols=2,
-                subplot_titles=("Payoff al vencimiento (T→0)", "Precio de la opción vs Spot"))
-
-            # Payoff
-            if tipo_op in ["Call", "Ambas"]:
-                payoff_call = np.maximum(spots - strike, 0)
-                fig_bs.add_trace(go.Scatter(x=spots, y=payoff_call, name="Payoff Call",
-                    line=dict(color=SUCCESS, width=2.5)), row=1, col=1)
-            if tipo_op in ["Put", "Ambas"]:
-                payoff_put = np.maximum(strike - spots, 0)
-                fig_bs.add_trace(go.Scatter(x=spots, y=payoff_put, name="Payoff Put",
-                    line=dict(color=DANGER, width=2.5)), row=1, col=1)
-            fig_bs.add_vline(x=strike, line_dash="dot", line_color=MUTED, opacity=0.6, row=1, col=1)
-            fig_bs.add_vline(x=S, line_dash="dash", line_color=WARNING, opacity=0.7, row=1, col=1)
-
-            # Precio BS vs Spot
-            def bs_price(s_arr, K, T, r, sig, tipo):
-                d1_ = (np.log(s_arr/K) + (r + 0.5*sig**2)*T) / (sig*np.sqrt(T) + 1e-12)
-                d2_ = d1_ - sig*np.sqrt(T)
-                if tipo == "call":
-                    return s_arr * sci_norm.cdf(d1_) - K*np.exp(-r*T)*sci_norm.cdf(d2_)
-                else:
-                    return K*np.exp(-r*T)*sci_norm.cdf(-d2_) - s_arr*sci_norm.cdf(-d1_)
-
-            if tipo_op in ["Call", "Ambas"]:
-                prices_call = bs_price(spots, strike, T_anios, r_op, vol, "call")
-                fig_bs.add_trace(go.Scatter(x=spots, y=prices_call, name="Precio Call (BS)",
-                    line=dict(color=SUCCESS, width=2, dash="dot")), row=1, col=2)
-                # Payoff intrínseco superpuesto
-                fig_bs.add_trace(go.Scatter(x=spots, y=np.maximum(spots - strike, 0), name="Valor intrínseco Call",
-                    line=dict(color=SUCCESS, width=1, dash="dashdot"), opacity=0.5), row=1, col=2)
-            if tipo_op in ["Put", "Ambas"]:
-                prices_put = bs_price(spots, strike, T_anios, r_op, vol, "put")
-                fig_bs.add_trace(go.Scatter(x=spots, y=prices_put, name="Precio Put (BS)",
-                    line=dict(color=DANGER, width=2, dash="dot")), row=1, col=2)
-                fig_bs.add_trace(go.Scatter(x=spots, y=np.maximum(strike - spots, 0), name="Valor intrínseco Put",
-                    line=dict(color=DANGER, width=1, dash="dashdot"), opacity=0.5), row=1, col=2)
-
-            fig_bs.add_vline(x=strike, line_dash="dot", line_color=MUTED, opacity=0.6, row=1, col=2)
-            fig_bs.add_vline(x=S, line_dash="dash", line_color=WARNING, opacity=0.7, row=1, col=2)
-            fig_bs.update_layout(height=420, **PLOT_TPL)
-            st.plotly_chart(fig_bs, use_container_width=True)
-
-            # ── Delta vs Spot ────────────────────────────────────────────────
-            section_title("Δ", "Delta vs Spot (convergencia a función escalón cuando T→0)")
-            venc_list = [T_dias, max(1, T_dias // 2), 1]
-            fig_delta = go.Figure()
-            for td in venc_list:
-                ta = td / 365
-                d1_arr = (np.log(spots/strike) + (r_op + 0.5*vol**2)*ta) / (vol*np.sqrt(ta) + 1e-12)
-                delta_arr = sci_norm.cdf(d1_arr)
-                fig_delta.add_trace(go.Scatter(x=spots, y=delta_arr,
-                    name=f"T={td}d", line=dict(width=2)))
-            fig_delta.add_vline(x=strike, line_dash="dot", line_color=MUTED, opacity=0.6)
-            fig_delta.update_layout(
-                title="Delta (Call) vs Spot para distintos T",
-                xaxis_title="Precio Spot", yaxis_title="Delta",
-                height=320, **PLOT_TPL)
-            st.plotly_chart(fig_delta, use_container_width=True)
-
-            # ── Volatilidad implícita ────────────────────────────────────────
-            if "vol_implicita" in bsdata:
-                section_title("📡", "Volatilidad Implícita")
-                vi = bsdata["vol_implicita"]
-                c_vi1, c_vi2 = st.columns(2)
-                c_vi1.metric("Vol. Implícita (σ_imp)", f"{vi:.2%}")
-                c_vi2.metric("Vol. Histórica (σ_hist)", f"{vol:.2%}")
-                diff_vi = vi - vol
-                badge_html(
-                    f"{'📈 Mercado paga prima de volatilidad' if diff_vi > 0 else '📉 Mercado descuenta volatilidad'} — "
-                    f"σ_imp − σ_hist = {diff_vi:+.2%}",
-                    "info"
-                )
-        else:
-            st.markdown('<div class="badge-info">👆 Configura los parámetros y pulsa <b>Valorar</b>.</div>', unsafe_allow_html=True)
-    else:
-        st.markdown('<div class="badge-info">👆 Configura los parámetros y pulsa <b>Valorar</b>.</div>', unsafe_allow_html=True)
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  MÓDULO 11 — STRESS TESTING ★
-# ══════════════════════════════════════════════════════════════════════════════
-elif opcion == "⚠️  Módulo 11 · Stress Testing ★":
-    page_header("⚠️ Módulo 11 · Stress Testing",
-                "Escenarios extremos sobre el portafolio óptimo — análisis forward-looking")
-
-    with st.sidebar:
-        st.markdown("### ⚙️ Parámetros")
-        tickers_st = st.multiselect("Activos del portafolio", TICKER_LIST,
-                                    default=TICKER_LIST[:5], key="m11_tickers")
-        inversion_st = st.number_input("Inversión base (USD)", value=100000, step=5000, key="m11_inv")
-        confianza_st = st.select_slider("Confianza VaR base", [0.95, 0.99], value=0.99, key="m11_conf")
-        calcular = st.button("🔄 Calcular Stress", type="primary", use_container_width=True)
-
-    st.markdown(f'<div class="autoload-banner">⚡ Stress Testing · {len(tickers_st)} activos · Inversión ${inversion_st:,.0f} · VaR base al {confianza_st:.0%}</div>', unsafe_allow_html=True)
-
-    with st.expander("📖 Stress Testing vs Backtesting — diferencia clave", expanded=False):
-        st.markdown("""
-El **backtesting de Kupiec** (Mód.5) *valida* el VaR contra historia observada — mira hacia atrás.
-
-El **stress testing** va al revés: aplica *escenarios hipotéticos extremos* — algunos sin precedente histórico — para estimar la pérdida potencial bajo condiciones adversas.
-
-**Ambos son obligatorios bajo Basilea III** para entidades financieras.
-
-| | Backtesting (Kupiec) | Stress Testing |
-|---|---|---|
-| Orientación | Backward-looking | Forward-looking |
-| Base | Historia observada | Escenarios hipotéticos |
-| Objetivo | Validar modelo VaR | Estimar pérdida extrema |
-        """)
-
-    # ── Definición de escenarios ─────────────────────────────────────────────
-    section_title("📋", "Escenarios Obligatorios")
-    escenarios_def = pd.DataFrame({
-        "Escenario": ["1. Shock de tasa", "2. Caída del mercado",
-                      "3. Shock de volatilidad", "4. Combinado (opcional)"],
-        "Shock": ["Δr = +200pb / −200pb", "R_bench = −20% / −30%",
-                  "σ → σ × 2", "Caída −20% + σ×2 + Δr +200pb"],
-        "Componentes afectados": [
-            "Renta fija (Mód.9): vía duración + convexidad. CAPM: Rf actualizada.",
-            "Cada activo según su β: ΔR_i = β_i · shock_mkt",
-            "VaR paramétrico, Montecarlo, opciones (vía vega)",
-            "Escenario tormenta perfecta — pérdida agregada bajo múltiples shocks"
-        ]
-    })
-    st.dataframe(escenarios_def.set_index("Escenario"), use_container_width=True)
+        st.markdown("### ⚙️ Parámetros Opción")
+        ticker_op = st.selectbox("Activo Subyacente", ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA"])
+        strike = st.number_input("Strike (K)", value=150.0)
+        dias = st.slider("Días a Vencimiento", 1, 365, 30)
+        tasa = st.number_input("Tasa Libre de Riesgo (%)", value=4.5) / 100
+        
+        calcular = st.button("🔄 Valorar", type="primary", use_container_width=True)
 
     if calcular:
-        if not tickers_st:
-            st.warning("Selecciona al menos un activo.")
+        payload = {"ticker": ticker_op, "strike": strike, "dias": dias, "tasa": tasa}
+        
+        with st.spinner("Calculando Black-Scholes..."):
+            bs_data = api_post("/api/opciones/blackscholes", payload)
+            
+        if bs_data:
+            # Precios
+            col_p1, col_p2, col_s = st.columns(3)
+            col_p1.metric("Precio Call", f"${bs_data.get('call_price', 0):,.2f}", delta_color="normal")
+            col_p2.metric("Precio Put", f"${bs_data.get('put_price', 0):,.2f}", delta_color="inverse")
+            col_s.metric("Precio Spot (S)", f"${bs_data.get('precio_spot', 0):,.2f}")
+            
+            # Griegas en tabla
+            st.markdown("### 📊 Las 5 Griegas")
+            df_greeks = pd.DataFrame({
+                "Griega": ["Delta (Δ)", "Gamma (Γ)", "Vega (ν)", "Theta (Θ)", "Rho (ρ)"],
+                "Valor": [
+                    bs_data.get("delta", 0), 
+                    bs_data.get("gamma", 0), 
+                    bs_data.get("vega", 0), 
+                    bs_data.get("theta", 0), 
+                    bs_data.get("rho", 0)
+                ],
+                "Significado": [
+                    "Sensibilidad al precio",
+                    "Curvatura (velocidad)",
+                    "Sensibilidad a volatilidad",
+                    "Decaimiento temporal",
+                    "Sensibilidad a tasa interés"
+                ]
+            })
+            st.dataframe(df_greeks.style.format("{:.4f}"), use_container_width=True)
+            st.caption("📌 *Nota: Theta y Rho suelen ser valores muy pequeños, representan el cambio por día o por 1% de tasa respectivamente.*")
+
+# ──────────────────────────────────────────────────────────────────────────────
+# MÓDULO 11 — STRESS TESTING
+# ──────────────────────────────────────────────────────────────────────────────
+elif opcion == "⚠️ Módulo 11 · Stress Testing ★":
+    page_header("⚠️ Módulo 11 · Stress Testing", "Simulación de escenarios extremos y riesgo de cola")
+    
+    with st.sidebar:
+        st.markdown("### ⚙️ Parámetros")
+        tickers_st = st.multiselect("Activos", ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA"], default=["AAPL", "MSFT"])
+        inversion = st.number_input("Inversión Total", value=100000, step=10000)
+        calcular = st.button("🔄 Ejecutar Stress", type="primary", use_container_width=True)
+
+    if calcular and tickers_st:
+        payload = {"tickers": tickers_st, "inversion": inversion}
+        
+        with st.spinner("Simulando escenarios de crisis..."):
+            stress_data = api_post("/api/stress/calcular", payload)
+            
+        if stress_data:
+            st.markdown("### 📉 Escenarios de Crisis")
+            
+            # Tabla de resultados
+            if "escenarios" in stress_data:
+                df_escenarios = pd.DataFrame(stress_data["escenarios"])
+                st.dataframe(df_escenarios.style.format({"perdida_usd": "${:,.2f}", "perdida_pct": "{:.2%}"}), use_container_width=True)
+                
+                # Gráfico de pérdidas
+                fig_stress = px.bar(df_escenarios, x="escenario", y="perdida_usd", 
+                                    title="Pérdida Estimada por Escenario",
+                                    color="perdida_usd", color_continuous_scale="Reds")
+                fig_stress.update_layout(**PLOT_TPL)
+                st.plotly_chart(fig_stress, use_container_width=True)
+            
+            st.warning("⚠️ **Conclusión:** El Stress Testing revela la vulnerabilidad del portafolio ante eventos raros (colas de distribución) que el VaR paramétrico estándar podría subestimar.")
         else:
-            with st.spinner("Ejecutando escenarios de stress..."):
-                st_data = api_post("/api/stress/calcular", {
-                    "tickers": tickers_st, "inversion": inversion_st,
-                    "confianza": confianza_st
-                })
-            if st_data:
-                st.session_state["m11_data"] = st_data
-
-    st_data = st.session_state.get("m11_data")
-
-    if st_data:
-        # ── VaR Base vs Estresado ────────────────────────────────────────────
-        section_title("📊", "VaR Base vs VaR Estresado (Paramétrico al 99%)")
-        var_base = st_data.get("var_base_pct", 0)
-        esc_results = st_data.get("escenarios", [])
-
-        sv1, sv2, sv3 = st.columns(3)
-        sv1.metric("VaR Base", f"{var_base:.2%}", delta_color="inverse")
-        sv2.metric("Pérdida Base (USD)", f"${abs(var_base) * inversion_st:,.0f}", delta_color="inverse")
-        peor = max(esc_results, key=lambda x: abs(x.get("perdida_pct", 0)), default={}) if esc_results else {}
-        sv3.metric("Peor Escenario", peor.get("nombre", "—"), f"{peor.get('perdida_pct', 0):.2%}", delta_color="inverse")
-
-        # ── Bar chart de pérdidas por escenario ─────────────────────────────
-        if esc_results:
-            nombres  = [e["nombre"] for e in esc_results]
-            perdidas = [abs(e.get("perdida_pct", 0)) * 100 for e in esc_results]
-            var_b_list = [abs(var_base) * 100] * len(nombres)
-
-            fig_bar = go.Figure()
-            fig_bar.add_trace(go.Bar(
-                x=nombres, y=perdidas, name="Pérdida Estresada (%)",
-                marker_color=[DANGER if p > abs(var_base)*100 else WARNING for p in perdidas],
-                text=[f"{p:.2f}%" for p in perdidas], textposition="outside"
-            ))
-            fig_bar.add_trace(go.Scatter(
-                x=nombres, y=var_b_list, name="VaR Base",
-                mode="lines", line=dict(color=CYAN, width=2, dash="dash")
-            ))
-            fig_bar.update_layout(
-                title="Pérdida % del Portafolio por Escenario de Stress",
-                xaxis_title="Escenario", yaxis_title="Pérdida (%)",
-                height=380, **PLOT_TPL)
-            st.plotly_chart(fig_bar, use_container_width=True)
-
-            # ── Tabla resumen de pérdidas ────────────────────────────────────
-            section_title("📋", "Tabla Resumen de Pérdidas por Escenario")
-            tabla_st = pd.DataFrame([{
-                "Escenario": e["nombre"],
-                "Pérdida (%)": f"{e.get('perdida_pct', 0):.2%}",
-                "Pérdida (USD)": f"${abs(e.get('perdida_pct', 0)) * inversion_st:,.0f}",
-                "VaR Estresado (%)": f"{e.get('var_estresado_pct', 0):.2%}",
-                "Supera VaR base": "⚠️ Sí" if abs(e.get('perdida_pct', 0)) > abs(var_base) else "✅ No"
-            } for e in esc_results])
-            st.dataframe(tabla_st.set_index("Escenario"), use_container_width=True)
-
-            # ── Heatmap de sensibilidad por activo ───────────────────────────
-            if "heatmap_activos" in st_data:
-                section_title("🔥", "Heatmap de Sensibilidad — Activo vs Escenario (ΔPrecio %)")
-                hm_df = pd.DataFrame(st_data["heatmap_activos"])
-                if not hm_df.empty:
-                    fig_hm = px.imshow(hm_df, text_auto=".2f",
-                        color_continuous_scale="RdYlGn_r",
-                        labels=dict(color="ΔPrecio (%)"))
-                    fig_hm.update_layout(height=max(300, len(hm_df) * 40 + 100), **PLOT_TPL)
-                    st.plotly_chart(fig_hm, use_container_width=True)
-            else:
-                badge_html("ℹ️ Agrega heatmap_activos al response del endpoint /api/stress/calcular para el heatmap por activo.", "info")
-
-            # ── Reverse stress test ──────────────────────────────────────────
-            if "reverse_stress_shock" in st_data:
-                section_title("🔄", "Reverse Stress Test")
-                rss = st_data["reverse_stress_shock"]
-                badge_html(
-                    f"📌 Shock mínimo necesario para producir una pérdida del 20% del portafolio: "
-                    f"<b>{rss:.2%}</b> de caída del mercado.",
-                    "warning"
-                )
-            else:
-                with st.expander("🔄 Reverse Stress Test — estimación local"):
-                    st.markdown("""
-**Objetivo:** Encontrar el shock mínimo (caída de mercado) que lleva al portafolio a una pérdida del 20%.
-
-Usando β promedio ponderado del portafolio y la relación ΔR_portafolio ≈ β̄ · shock_mkt,
-el shock necesario para −20% es aproximadamente:
-
-    shock_necesario = −0.20 / β̄
-
-El backend puede calcular esto con precisión integrando los tres métodos VaR bajo cada nivel de shock.
-                    """)
-
-            # Badges finales
-            peor_pct = abs(peor.get("perdida_pct", 0))
-            if peor_pct > 0.20:
-                badge_html(
-                    f"🚨 El peor escenario genera una pérdida del {peor_pct:.2%} — superior al 20%. "
-                    f"Revisar exposición del portafolio y considerar coberturas.",
-                    "error"
-                )
-            elif peor_pct > 0.10:
-                badge_html(
-                    f"⚠️ El peor escenario genera una pérdida del {peor_pct:.2%}. "
-                    f"Portafolio moderadamente expuesto a shocks extremos.",
-                    "warning"
-                )
-            else:
-                badge_html(
-                    f"✅ El portafolio muestra resiliencia ante stress — pérdida máxima {peor_pct:.2%}.",
-                    "success"
-                )
-    else:
-        st.markdown('<div class="badge-info">👆 Selecciona los activos del portafolio y pulsa <b>Calcular Stress</b>.</div>', unsafe_allow_html=True)
+            st.error("Error al conectar con el módulo de Stress Testing.")

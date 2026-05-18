@@ -1,167 +1,123 @@
 """
-routers/endpoints.py
-Los 8 routers temáticos (uno por módulo) + router de utilidades.
-Total: 9 endpoints principales (supera el mínimo de 7 requerido).
+backend/routers/endpoints.py
+Routers FastAPI para los 11 módulos del proyecto.
 """
-from fastapi import APIRouter, Depends, Query
-from typing import Annotated
-from typing import Annotated
-from fastapi import Depends
-
+from fastapi import APIRouter, HTTPException
 from backend.models.schemas import (
     TecnicoRequest, RendimientosRequest, GarchRequest, CapmRequest,
     VarRequest, MarkowitzRequest, SenalesRequest, MacroRequest,
+    EwmaRequest, BonoRequest, OpcionRequest, StressRequest,
     IndicadoresResponse, RendimientosResponse, GarchResponse,
     CapmResponse, VarResponse, MarkowitzResponse, SenalesResponse, MacroResponse,
+    EwmaResponse, CurvaResponse, BonoResponse, OpcionResponse, StressResponse
 )
-from .dependencies import FinancialService, get_financial_service
-from backend.services.financial import TICKERS_DEFAULT
-
-ServiceDep = Annotated[FinancialService, Depends(get_financial_service)]
-
-
-# ─── ROUTER UTILIDADES ────────────────────────────────────────────────────────
-router_utils = APIRouter(prefix="/api/utils", tags=["Utilidades"])
-
-@router_utils.get("/tickers", summary="Lista de tickers disponibles")
-def get_tickers():
-    """Retorna el listado de tickers predeterminados con su descripción."""
-    return {"tickers": TICKERS_DEFAULT}
-
-@router_utils.get("/health", summary="Estado del servicio")
-def health_check():
-    return {"status": "ok", "message": "API de Análisis Financiero activa"}
-
-
-# ─── MÓDULO 1: ANÁLISIS TÉCNICO ───────────────────────────────────────────────
-router_tecnico = APIRouter(prefix="/api/tecnico", tags=["Módulo 1 · Análisis Técnico"])
-
-@router_tecnico.post(
-    "/indicadores",
-    response_model=IndicadoresResponse,
-    summary="Calcula indicadores técnicos (SMA, EMA, RSI, MACD, Bollinger, Estocástico)"
+from backend.services.financial import (
+    calcular_tecnico, calcular_rendimientos, calcular_garch,
+    calcular_capm, calcular_var, calcular_markowitz,
+    calcular_senales, calcular_macro,
+    calcular_ewma, calcular_curva_rendimiento, calcular_bono,
+    calcular_opciones, calcular_stress
 )
-def get_indicadores(req: TecnicoRequest, svc: ServiceDep):
-    """
-    Descarga precios históricos y calcula los indicadores técnicos principales.
-    Retorna los últimos 120 días de datos con todos los indicadores calculados.
-    """
-    return svc.get_tecnico(
-        req.ticker, req.periodo.value,
-        req.sma_corto, req.sma_largo,
-        req.rsi_periodo, req.bb_periodo, req.bb_std
-    )
 
-
-# ─── MÓDULO 2: RENDIMIENTOS ───────────────────────────────────────────────────
+# ─── ROUTERS EXISTENTES (MÓDULOS 1-8) ────────────────────────────────────────
+router_utils = APIRouter(prefix="/api/utils", tags=["Utils"])
+router_tecnico = APIRouter(prefix="/api/tecnico", tags=["Módulo 1 · Técnico"])
 router_rendimientos = APIRouter(prefix="/api/rendimientos", tags=["Módulo 2 · Rendimientos"])
-
-@router_rendimientos.post(
-    "/estadisticas",
-    response_model=RendimientosResponse,
-    summary="Estadísticas descriptivas y pruebas de normalidad de rendimientos"
-)
-def get_rendimientos(req: RendimientosRequest, svc: ServiceDep):
-    """
-    Calcula rendimientos simples o logarítmicos y entrega estadísticas completas:
-    media, desviación, asimetría, curtosis, Jarque-Bera y Shapiro-Wilk.
-    """
-    return svc.get_rendimientos(req.ticker, req.periodo.value, req.tipo.value)
-
-
-# ─── MÓDULO 3: GARCH ──────────────────────────────────────────────────────────
-router_garch = APIRouter(prefix="/api/garch", tags=["Módulo 3 · ARCH/GARCH"])
-
-@router_garch.post(
-    "/volatilidad",
-    response_model=GarchResponse,
-    summary="Modela y pronostica volatilidad con ARCH(1), GARCH(1,1) y EGARCH(1,1)"
-)
-def get_garch(req: GarchRequest, svc: ServiceDep):
-    """
-    Ajusta tres especificaciones de modelos GARCH con la distribución seleccionada.
-    Retorna comparativa AIC/BIC, pronóstico de volatilidad y diagnóstico de residuos.
-    """
-    return svc.get_garch(req.ticker, req.horizonte, req.distribucion.value)
-
-
-# ─── MÓDULO 4: CAPM ───────────────────────────────────────────────────────────
-router_capm = APIRouter(prefix="/api/capm", tags=["Módulo 4 · CAPM y Beta"])
-
-@router_capm.post(
-    "/beta",
-    response_model=CapmResponse,
-    summary="Estima Beta y retorno esperado bajo el modelo CAPM"
-)
-def get_capm(req: CapmRequest, svc: ServiceDep):
-    """
-    Obtiene la tasa libre de riesgo actual (^TNX), estima Beta por regresión OLS
-    y calcula el retorno esperado según CAPM. Clasifica el activo como
-    Agresivo (β>1.1), Neutro o Defensivo (β<0.9).
-    """
-    return svc.get_capm(req.ticker, req.benchmark, req.periodo.value)
-
-
-# ─── MÓDULO 5: VaR / CVaR ─────────────────────────────────────────────────────
-router_var = APIRouter(prefix="/api/var", tags=["Módulo 5 · VaR y CVaR"])
-
-@router_var.post(
-    "/calcular",
-    response_model=VarResponse,
-    summary="Calcula VaR (Paramétrico, Histórico, Montecarlo) y CVaR"
-)
-def get_var(req: VarRequest, svc: ServiceDep):
-    """
-    Cuantifica el riesgo de pérdida máxima bajo tres metodologías y calcula
-    el Expected Shortfall (CVaR). Retorna valores porcentuales y en USD.
-    """
-    return svc.get_var(req.ticker, req.confianza, req.inversion, req.n_sims)
-
-
-# ─── MÓDULO 6: MARKOWITZ ──────────────────────────────────────────────────────
+router_garch = APIRouter(prefix="/api/garch", tags=["Módulo 3 · GARCH"])
+router_capm = APIRouter(prefix="/api/capm", tags=["Módulo 4 · CAPM"])
+router_var = APIRouter(prefix="/api/var", tags=["Módulo 5 · VaR"])
 router_markowitz = APIRouter(prefix="/api/markowitz", tags=["Módulo 6 · Markowitz"])
+router_senales = APIRouter(prefix="/api/senales", tags=["Módulo 7 · Señales"])
+router_macro = APIRouter(prefix="/api/macro", tags=["Módulo 8 · Macro"])
 
-@router_markowitz.post(
-    "/frontera",
-    response_model=MarkowitzResponse,
-    summary="Construye la frontera eficiente y portafolios óptimos (Markowitz)"
-)
-def get_markowitz(req: MarkowitzRequest, svc: ServiceDep):
-    """
-    Simula num_portafolios carteras aleatorias, construye la frontera eficiente
-    e identifica el portafolio de Máximo Sharpe y Mínima Varianza.
-    Incluye la matriz de correlación entre activos.
-    """
-    return svc.get_markowitz(req.tickers, req.num_portafolios, req.periodo.value)
+# ─── NUEVOS ROUTERS (MÓDULOS 9-11) ───────────────────────────────────────────
+router_renta_fija = APIRouter(prefix="/api/renta-fija", tags=["Módulo 9 · Renta Fija"])
+router_opciones = APIRouter(prefix="/api/opciones", tags=["Módulo 10 · Opciones"])
+router_stress = APIRouter(prefix="/api/stress", tags=["Módulo 11 · Stress Testing"])
 
+# ─── UTILS ───────────────────────────────────────────────────────────────────
+@router_utils.get("/health")
+def health(): return {"status": "ok", "message": "Backend operativo"}
 
-# ─── MÓDULO 7: SEÑALES ────────────────────────────────────────────────────────
-router_senales = APIRouter(prefix="/api/senales", tags=["Módulo 7 · Señales ★"])
+@router_utils.get("/tickers")
+def get_tickers():
+    return {"tickers": {"AAPL": "Apple", "MSFT": "Microsoft", "GOOGL": "Alphabet", "AMZN": "Amazon",
+        "TSLA": "Tesla", "NVDA": "NVIDIA", "JPM": "JPMorgan", "BAC": "Bank of America",
+        "GLD": "Gold ETF", "BTC-USD": "Bitcoin"}}
 
-@router_senales.post(
-    "/panel",
-    response_model=SenalesResponse,
-    summary="Panel de señales algorítmicas (MACD, RSI, Bollinger, Medias Móviles)"
-)
-def get_senales(req: SenalesRequest, svc: ServiceDep):
-    """
-    Genera señales de COMPRA / VENTA / NEUTRAL basadas en cuatro indicadores técnicos.
-    Incluye una señal global consolidada por mayoría de votos.
-    """
-    return svc.get_senales(req.ticker, req.rsi_up, req.rsi_down)
+# ─── MÓDULO 1: TÉCNICO ───────────────────────────────────────────────────────
+@router_tecnico.post("/indicadores", response_model=IndicadoresResponse)
+def indicadores(req: TecnicoRequest):
+    try: return calcular_tecnico(req.ticker, req.periodo.value, req.sma_corto, req.sma_largo, req.rsi_periodo, req.bb_periodo, req.bb_std)
+    except ValueError as e: raise HTTPException(status_code=404, detail=str(e))
 
+# ─── MÓDULO 2: RENDIMIENTOS ──────────────────────────────────────────────────
+@router_rendimientos.post("/estadisticas", response_model=RendimientosResponse)
+def rendimientos(req: RendimientosRequest):
+    try: return calcular_rendimientos(req.ticker, req.periodo.value, req.tipo.value)
+    except ValueError as e: raise HTTPException(status_code=404, detail=str(e))
 
-# ─── MÓDULO 8: MACRO ──────────────────────────────────────────────────────────
-router_macro = APIRouter(prefix="/api/macro", tags=["Módulo 8 · Macro y Benchmark ★"])
+# ─── MÓDULO 3: GARCH ─────────────────────────────────────────────────────────
+@router_garch.post("/volatilidad", response_model=GarchResponse)
+def volatilidad(req: GarchRequest):
+    try: return calcular_garch(req.ticker, req.horizonte, req.distribucion.value)
+    except ValueError as e: raise HTTPException(status_code=404, detail=str(e))
 
-@router_macro.post(
-    "/benchmark",
-    response_model=MacroResponse,
-    summary="Comparativa del portafolio vs benchmark con métricas de desempeño"
-)
-def get_macro(req: MacroRequest, svc: ServiceDep):
-    """
-    Calcula rendimiento acumulado del portafolio igualmente ponderado vs S&P 500.
-    Entrega Alpha, Tracking Error, Information Ratio y Máximo Drawdown.
-    """
-    return svc.get_macro(req.tickers, req.benchmark, req.periodo.value)
+# ─── FASE 2.1: EWMA ──────────────────────────────────────────────────────────
+@router_garch.post("/ewma", response_model=EwmaResponse)
+def ewma(req: EwmaRequest):
+    try: return calcular_ewma(req.ticker, req.lambda_, req.periodo)
+    except ValueError as e: raise HTTPException(status_code=404, detail=str(e))
+
+# ─── MÓDULO 4: CAPM ──────────────────────────────────────────────────────────
+@router_capm.post("/beta", response_model=CapmResponse)
+def capm(req: CapmRequest):
+    try: return calcular_capm(req.ticker, req.benchmark, req.periodo.value)
+    except ValueError as e: raise HTTPException(status_code=404, detail=str(e))
+
+# ─── MÓDULO 5: VaR ───────────────────────────────────────────────────────────
+@router_var.post("/calcular", response_model=VarResponse)
+def var(req: VarRequest):
+    try: return calcular_var(req.ticker, req.confianza, req.inversion, req.n_sims)
+    except ValueError as e: raise HTTPException(status_code=404, detail=str(e))
+
+# ─── MÓDULO 6: MARKOWITZ ─────────────────────────────────────────────────────
+@router_markowitz.post("/frontera", response_model=MarkowitzResponse)
+def markowitz(req: MarkowitzRequest):
+    try: return calcular_markowitz(req.tickers, req.num_portafolios, req.periodo.value)
+    except ValueError as e: raise HTTPException(status_code=404, detail=str(e))
+
+# ─── MÓDULO 7: SEÑALES ───────────────────────────────────────────────────────
+@router_senales.post("/panel", response_model=SenalesResponse)
+def senales(req: SenalesRequest):
+    try: return calcular_senales(req.ticker, req.rsi_up, req.rsi_down)
+    except ValueError as e: raise HTTPException(status_code=404, detail=str(e))
+
+# ─── MÓDULO 8: MACRO ─────────────────────────────────────────────────────────
+@router_macro.post("/benchmark", response_model=MacroResponse)
+def macro(req: MacroRequest):
+    try: return calcular_macro(req.tickers, req.benchmark, req.periodo.value)
+    except ValueError as e: raise HTTPException(status_code=404, detail=str(e))
+
+# ─── FASE 3.1: RENTA FIJA ────────────────────────────────────────────────────
+@router_renta_fija.get("/curva", response_model=CurvaResponse)
+def curva():
+    try: return calcular_curva_rendimiento()
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@router_renta_fija.post("/bono", response_model=BonoResponse)
+def bono(req: BonoRequest):
+    try: return calcular_bono(req.cupon_pct, req.vencimiento, req.valor_nominal, req.frecuencia)
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# ─── FASE 3.2: OPCIONES ──────────────────────────────────────────────────────
+@router_opciones.post("/valorar", response_model=OpcionResponse)
+def opciones(req: OpcionRequest):
+    try: return calcular_opciones(req.ticker, req.strike, req.vencimiento_dias, req.tasa_libre_riesgo)
+    except ValueError as e: raise HTTPException(status_code=404, detail=str(e))
+
+# ─── FASE 3.3: STRESS TESTING ────────────────────────────────────────────────
+@router_stress.post("/calcular", response_model=StressResponse)
+def stress(req: StressRequest):
+    try: return calcular_stress(req.tickers, req.inversion, req.confianza)
+    except ValueError as e: raise HTTPException(status_code=404, detail=str(e))
