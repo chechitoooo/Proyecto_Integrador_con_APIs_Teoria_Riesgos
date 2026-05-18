@@ -382,6 +382,9 @@ with st.sidebar:
         "🎯  Módulo 6 · Markowitz",
         "🚦  Módulo 7 · Señales ★",
         "🌍  Módulo 8 · Macro ★",
+        "📐  Módulo 9 · Renta Fija ★",
+        "🎲  Módulo 10 · Opciones ★",
+        "⚠️  Módulo 11 · Stress Testing ★",
     ], label_visibility="collapsed")
 
     st.markdown("<hr>", unsafe_allow_html=True)
@@ -449,7 +452,7 @@ if opcion == "🏠  Portada":
         st.markdown(f"""
         <div style="margin-top:14px;font-size:12px;color:#64748B;">
             Activos disponibles: <b style="color:#C4B5FD;">{len(TICKERS)}</b><br>
-            Módulos activos: <b style="color:#C4B5FD;">8</b>
+            Módulos activos: <b style="color:#C4B5FD;">11</b>
         </div>
         </div>
         """, unsafe_allow_html=True)
@@ -464,6 +467,9 @@ if opcion == "🏠  Portada":
         ("6","🎯","Markowitz","Frontera eficiente","#F59E0B"),
         ("7","🚦","Señales ★","Panel semáforo","#22C55E"),
         ("8","🌍","Macro ★","Alpha · Benchmark","#8B5CF6"),
+        ("9","📐","Renta Fija ★","Curva · Duración","#EC4899"),
+        ("10","🎲","Opciones ★","Black-Scholes · Greeks","#F97316"),
+        ("11","⚠️","Stress Testing ★","Escenarios extremos","#EF4444"),
     ]
     cols = st.columns(4)
     for i, (num, icon, name, desc, color) in enumerate(mods):
@@ -503,9 +509,12 @@ elif opcion == "📈  Módulo 1 · Técnico":
         tickers = TICKER_LIST if (all_opt in selected or not selected) else selected
         
         periodo  = st.selectbox("Horizonte", ["1y","2y","5y"], index=1, key="m1_p")
+        tipo_graf = st.radio("Tipo de gráfico", ["Línea", "Velas japonesas"], key="m1_tipo", horizontal=True)
         sma_c    = st.slider("SMA Corto", 5, 50, 20, key="m1_smac")
         sma_l    = st.slider("SMA Largo", 21, 200, 50, key="m1_smal")
+        ema_p    = st.slider("Período EMA", 5, 50, 21, key="m1_ema")
         rsi_p    = st.slider("Período RSI", 5, 30, 14, key="m1_rsi")
+        stoch_k  = st.slider("Estocástico %K", 5, 21, 14, key="m1_stochk")
         calcular = st.button("🔄 Calcular", type="primary", use_container_width=True)
 
     st.markdown(f"""
@@ -526,7 +535,9 @@ elif opcion == "📈  Módulo 1 · Técnico":
             payload = {
                 "ticker": t, "periodo": periodo,
                 "sma_corto": sma_c, "sma_largo": sma_l,
-                "rsi_periodo": rsi_p, "bb_periodo": 20, "bb_std": 2.0
+                "ema_periodo": ema_p,
+                "rsi_periodo": rsi_p, "bb_periodo": 20, "bb_std": 2.0,
+                "stoch_k": stoch_k
             }
             data = api_post("/api/tecnico/indicadores", payload)
             if data:
@@ -565,25 +576,75 @@ elif opcion == "📈  Módulo 1 · Técnico":
                 df = pd.DataFrame(data["datos"])
                 df["fecha"] = pd.to_datetime(df["fecha"])
 
-                fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
-                    row_heights=[0.72, 0.28], vertical_spacing=0.04,
-                    subplot_titles=("Precio e Indicadores", "RSI (Relative Strength Index)"))
-                fig.add_trace(go.Scatter(x=df["fecha"], y=df["close"],
-                    name="Precio", line=dict(color=PRIMARY, width=2.5)), row=1, col=1)
-                fig.add_trace(go.Scatter(x=df["fecha"], y=df[f"sma_{sma_c}"],
-                    name=f"SMA {sma_c}", line=dict(color=WARNING, width=1.5, dash="dot")), row=1, col=1)
-                fig.add_trace(go.Scatter(x=df["fecha"], y=df[f"sma_{sma_l}"],
-                    name=f"SMA {sma_l}", line=dict(color=DANGER, width=1.5, dash="dot")), row=1, col=1)
-                fig.add_trace(go.Scatter(x=df["fecha"], y=df["bb_upper"],
-                    name="BB+", line=dict(color="#8B5CF6", width=1, dash="dot")), row=1, col=1)
-                fig.add_trace(go.Scatter(x=df["fecha"], y=df["bb_lower"],
-                    name="BB−", line=dict(color="#8B5CF6", width=1, dash="dot"),
-                    fill="tonexty", fillcolor="rgba(139,92,246,0.06)"), row=1, col=1)
-                fig.add_trace(go.Scatter(x=df["fecha"], y=df["rsi"],
-                    name="RSI", line=dict(color=CYAN, width=2)), row=2, col=1)
-                fig.add_hline(y=70, line_dash="dash", line_color=DANGER, row=2, col=1)
-                fig.add_hline(y=30, line_dash="dash", line_color=SUCCESS, row=2, col=1)
-                fig.update_layout(height=600, hovermode="x unified", **PLOT_TPL)
+                # ── Gráfico principal: Línea o Velas japonesas ──────────────
+                fig = make_subplots(rows=4, cols=1, shared_xaxes=True,
+                    row_heights=[0.45, 0.18, 0.18, 0.19], vertical_spacing=0.03,
+                    subplot_titles=("Precio e Indicadores", "RSI", "MACD", "Estocástico"))
+
+                # Precio
+                if tipo_graf == "Velas japonesas" and all(c in df.columns for c in ["open","high","low","close"]):
+                    fig.add_trace(go.Candlestick(x=df["fecha"],
+                        open=df["open"], high=df["high"], low=df["low"], close=df["close"],
+                        name="OHLC", increasing_line_color=SUCCESS, decreasing_line_color=DANGER), row=1, col=1)
+                else:
+                    fig.add_trace(go.Scatter(x=df["fecha"], y=df["close"],
+                        name="Precio", line=dict(color=PRIMARY, width=2.5)), row=1, col=1)
+
+                # SMA
+                if f"sma_{sma_c}" in df.columns:
+                    fig.add_trace(go.Scatter(x=df["fecha"], y=df[f"sma_{sma_c}"],
+                        name=f"SMA {sma_c}", line=dict(color=WARNING, width=1.5, dash="dot")), row=1, col=1)
+                if f"sma_{sma_l}" in df.columns:
+                    fig.add_trace(go.Scatter(x=df["fecha"], y=df[f"sma_{sma_l}"],
+                        name=f"SMA {sma_l}", line=dict(color=DANGER, width=1.5, dash="dot")), row=1, col=1)
+
+                # EMA
+                if "ema" in df.columns:
+                    fig.add_trace(go.Scatter(x=df["fecha"], y=df["ema"],
+                        name=f"EMA {ema_p}", line=dict(color=SUCCESS, width=1.5, dash="dashdot")), row=1, col=1)
+
+                # Bollinger Bands
+                if "bb_upper" in df.columns:
+                    fig.add_trace(go.Scatter(x=df["fecha"], y=df["bb_upper"],
+                        name="BB+", line=dict(color="#8B5CF6", width=1, dash="dot")), row=1, col=1)
+                    fig.add_trace(go.Scatter(x=df["fecha"], y=df["bb_lower"],
+                        name="BB−", line=dict(color="#8B5CF6", width=1, dash="dot"),
+                        fill="tonexty", fillcolor="rgba(139,92,246,0.06)"), row=1, col=1)
+
+                # RSI
+                if "rsi" in df.columns:
+                    fig.add_trace(go.Scatter(x=df["fecha"], y=df["rsi"],
+                        name="RSI", line=dict(color=CYAN, width=2)), row=2, col=1)
+                    fig.add_hline(y=70, line_dash="dash", line_color=DANGER, row=2, col=1)
+                    fig.add_hline(y=30, line_dash="dash", line_color=SUCCESS, row=2, col=1)
+                    fig.add_hrect(y0=70, y1=100, fillcolor="rgba(239,68,68,0.06)", row=2, col=1, line_width=0)
+                    fig.add_hrect(y0=0, y1=30, fillcolor="rgba(34,197,94,0.06)", row=2, col=1, line_width=0)
+
+                # MACD
+                if "macd" in df.columns:
+                    fig.add_trace(go.Scatter(x=df["fecha"], y=df["macd"],
+                        name="MACD", line=dict(color=PRIMARY, width=1.8)), row=3, col=1)
+                if "macd_signal" in df.columns:
+                    fig.add_trace(go.Scatter(x=df["fecha"], y=df["macd_signal"],
+                        name="Señal", line=dict(color=WARNING, width=1.5, dash="dot")), row=3, col=1)
+                if "macd_hist" in df.columns:
+                    colors_macd = [SUCCESS if v >= 0 else DANGER for v in df["macd_hist"]]
+                    fig.add_trace(go.Bar(x=df["fecha"], y=df["macd_hist"],
+                        name="Histograma", marker_color=colors_macd, opacity=0.7), row=3, col=1)
+                fig.add_hline(y=0, line_dash="dot", line_color=MUTED, opacity=0.5, row=3, col=1)
+
+                # Estocástico
+                if "stoch_k" in df.columns:
+                    fig.add_trace(go.Scatter(x=df["fecha"], y=df["stoch_k"],
+                        name="%K", line=dict(color=CYAN, width=1.8)), row=4, col=1)
+                if "stoch_d" in df.columns:
+                    fig.add_trace(go.Scatter(x=df["fecha"], y=df["stoch_d"],
+                        name="%D", line=dict(color=WARNING, width=1.5, dash="dot")), row=4, col=1)
+                    fig.add_hline(y=80, line_dash="dash", line_color=DANGER, opacity=0.6, row=4, col=1)
+                    fig.add_hline(y=20, line_dash="dash", line_color=SUCCESS, opacity=0.6, row=4, col=1)
+
+                fig.update_layout(height=800, hovermode="x unified",
+                                  xaxis_rangeslider_visible=False, **PLOT_TPL)
                 st.plotly_chart(fig, use_container_width=True)
 
                 with st.expander("📘 Interpretación de Indicadores"):
@@ -591,11 +652,16 @@ elif opcion == "📈  Módulo 1 · Técnico":
                     rsi_v = data['rsi_actual']
                     estado_rsi = "sobrecompra ⚠️" if rsi_v > 70 else "sobreventa 🔻" if rsi_v < 30 else "zona neutral ✅"
                     with cc[0]:
-                        st.info(f"**SMA:** Cruce SMA{sma_c} sobre SMA{sma_l} → señal de tendencia alcista.")
+                        st.info(f"**SMA / EMA:** Cruce SMA{sma_c} sobre SMA{sma_l} → señal de tendencia alcista. La EMA reacciona más rápido a movimientos recientes.")
                     with cc[1]:
-                        st.info(f"**RSI = {rsi_v:.1f}:** Activo en {estado_rsi}.")
+                        st.info(f"**RSI = {rsi_v:.1f}:** Activo en {estado_rsi}. Valores >70 indican sobrecompra; <30 sobreventa.")
                     with cc[2]:
-                        st.info("**Bollinger:** Expansión de bandas indica mayor volatilidad implícita.")
+                        st.info("**Bollinger:** Expansión de bandas indica mayor volatilidad. Precio tocando banda superior puede señalar sobreextensión.")
+                    cc2 = st.columns(2)
+                    with cc2[0]:
+                        st.info("**MACD:** Cruce de la línea MACD sobre la señal → impulso alcista. Histograma verde = momentum positivo.")
+                    with cc2[1]:
+                        st.info("**Estocástico (%K/%D):** %K cruzando %D en zona <20 → compra potencial; en zona >80 → venta potencial.")
     else:
         st.markdown('<div class="badge-info">👆 Selecciona activos en el panel izquierdo y pulsa <b>Calcular</b> para visualizar los indicadores.</div>', unsafe_allow_html=True)
 
@@ -619,6 +685,19 @@ elif opcion == "📉  Módulo 2 · Rendimientos":
         calcular = st.button("🔄 Calcular", type="primary", use_container_width=True)
 
     st.markdown(f'<div class="autoload-banner">⚡ Análisis de rendimientos para <b>{len(tickers)} activos</b> · Tipo: {tipo}</div>', unsafe_allow_html=True)
+
+    with st.expander("📖 ¿Por qué usar log-rendimientos?", expanded=False):
+        st.markdown("""
+**Justificación del uso de rendimientos logarítmicos:**
+
+Los **log-rendimientos** r_t = ln(P_t / P_{t-1}) son preferibles en análisis cuantitativo por tres razones fundamentales:
+
+1. **Aditividad temporal:** La suma de log-rendimientos diarios equivale exactamente al log-rendimiento del período completo — propiedad que los rendimientos simples no tienen.
+2. **Aproximación a la normalidad:** Para retornos pequeños, log(1 + R) ≈ R, por lo que la distribución es aproximadamente simétrica y más tratable estadísticamente.
+3. **Estacionariedad:** Los precios son no estacionarios, pero sus logaritmos diferenciados suelen serlo, lo que facilita el modelado (GARCH, CAPM, VaR paramétrico).
+
+> Esta justificación es clave para el informe ejecutivo y para validar los supuestos de los Módulos 3, 4 y 5.
+        """)
 
     results = {}
     if calcular:
@@ -739,6 +818,7 @@ elif opcion == "🌊  Módulo 3 · ARCH/GARCH":
         tickers = TICKER_LIST if (all_opt in selected or not selected) else selected
         
         dist = st.selectbox("Distribución", ["Normal","t-Student","Skewed t-Student"], index=1, key="m3_dist")
+        lambda_ewma = st.slider("λ EWMA (RiskMetrics=0.94)", 0.80, 0.99, 0.94, step=0.01, key="m3_lam")
         horizonte = st.slider("Días a pronosticar", 5, 30, 10, key="m3_hor")
         calcular = st.button("🔄 Ajustar Modelos", type="primary", use_container_width=True)
 
@@ -760,7 +840,7 @@ Los modelos **ARCH/GARCH** capturan el *agrupamiento de volatilidad* en series f
         for i, t in enumerate(tickers):
             status_text.text(f"🔄 Ajustando {t} ({i+1}/{len(tickers)})...")
             data = api_post("/api/garch/volatilidad",
-                            {"ticker": t, "horizonte": horizonte, "distribucion": dist})
+                            {"ticker": t, "horizonte": horizonte, "distribucion": dist, "lambda_ewma": lambda_ewma})
             if data:
                 results[t] = data
                 st.session_state[f"m3_{t}"] = data
@@ -783,6 +863,30 @@ Los modelos **ARCH/GARCH** capturan el *agrupamiento de volatilidad* en series f
         for (ticker, data), tab in zip(results.items(), tabs):
             with tab:
                 st.markdown(f"#### 🌊 {TICKERS[ticker]} (`{ticker}`)")
+
+                # ── EWMA ───────────────────────────────────────────────────
+                section_title("📐", f"Suavizamiento Exponencial EWMA (λ={lambda_ewma})")
+                if "ewma_volatilidad" in data and "vol_muestral_rodante" in data:
+                    ewma_series = data["ewma_volatilidad"]
+                    vol_rod = data["vol_muestral_rodante"]
+                    fechas_vol = data.get("fechas_vol", list(range(len(ewma_series))))
+                    fig_ewma = go.Figure()
+                    fig_ewma.add_trace(go.Scatter(x=fechas_vol, y=ewma_series,
+                        name=f"EWMA (λ={lambda_ewma})",
+                        line=dict(color=PRIMARY, width=2.5)))
+                    fig_ewma.add_trace(go.Scatter(x=fechas_vol, y=vol_rod,
+                        name="Vol. Muestral Rodante (22d)",
+                        line=dict(color=MUTED, width=1.5, dash="dot")))
+                    fig_ewma.update_layout(title="Volatilidad EWMA vs Muestral Rodante",
+                        yaxis_title="Volatilidad diaria (%)", height=320, **PLOT_TPL)
+                    st.plotly_chart(fig_ewma, use_container_width=True)
+                    col_e1, col_e2 = st.columns(2)
+                    with col_e1:
+                        badge_html(f"✅ EWMA — Ventajas: parsimonia, sin estimación de parámetros, decay constante.", "info")
+                    with col_e2:
+                        badge_html("⚠️ EWMA — Limitaciones: no captura asimetría, no respeta restricción de varianza incondicional finita.", "warning")
+                else:
+                    badge_html("ℹ️ El backend no retornó series EWMA. Verifica que el endpoint /api/garch/volatilidad incluya ewma_volatilidad y vol_muestral_rodante.", "warning")
                 
                 section_title("📊", "Comparativa de Modelos")
                 df_mod = pd.DataFrame(data["comparativa_modelos"])
@@ -830,6 +934,32 @@ Los modelos **ARCH/GARCH** capturan el *agrupamiento de volatilidad* en series f
                 fig_f.update_layout(xaxis_title="Días hacia adelante", yaxis_title="Volatilidad (%)", height=360, **PLOT_TPL)
                 st.plotly_chart(fig_f, use_container_width=True)
                 badge_html(f"📊 Vol. promedio pronosticada: {np.mean(vol_fc):.3f}% diario — {np.mean(vol_fc)*np.sqrt(252):.2f}% anualizado.", "info")
+
+                # ── Test ARCH-LM ────────────────────────────────────────────
+                section_title("🔬", "Diagnóstico · Test ARCH-LM sobre Residuos")
+                if "arch_lm_pvalor" in data:
+                    p_archlm = data["arch_lm_pvalor"]
+                    c_lm1, c_lm2 = st.columns(2)
+                    c_lm1.metric("ARCH-LM p-valor", f"{fmt_pval(p_archlm)}")
+                    with c_lm2:
+                        if p_archlm < 0.05:
+                            badge_html("✅ Efectos ARCH eliminados por el modelo (p > 0.05 esperado — aquí p < 0.05: considera modelo adicional)", "warning")
+                        else:
+                            badge_html("✅ No hay efectos ARCH residuales — modelo bien especificado", "success")
+                else:
+                    st.caption("ℹ️ Test ARCH-LM no disponible. Agrega arch_lm_pvalor al response del backend.")
+
+                # ── Tabla comparativa EWMA vs GARCH(1,1) ───────────────────
+                section_title("📊", "Comparación EWMA vs GARCH(1,1)")
+                comp_table = pd.DataFrame({
+                    "Aspecto": ["Parámetros estimados","Varianza incondicional","Reversión a la media",
+                                "Costo computacional","Captura asimetría","Interpretación"],
+                    "EWMA": ["0 (λ fijo o calibrado)","No definida","No",
+                             "Mínimo (recursión)","No","Decay exponencial constante"],
+                    "GARCH(1,1)": ["3 (ω, α, β)","σ² = ω / (1 − α − β)","Sí, si α + β < 1",
+                                   "Optimización por máx. verosimilitud","Sólo en variantes (EGARCH, GJR)","Estructura paramétrica completa"],
+                })
+                st.dataframe(comp_table.set_index("Aspecto"), use_container_width=True)
     else:
         st.markdown('<div class="badge-info">👆 Selecciona activos y pulsa <b>Ajustar Modelos</b>.</div>', unsafe_allow_html=True)
 
@@ -924,6 +1054,102 @@ elif opcion == "⚖️  Módulo 4 · CAPM y Beta":
                     f"los movimientos del mercado un **{abs((beta-1)*100):.1f}%**. "
                     f"Retorno esperado CAPM: **{data['retorno_esperado_pct']:.2%}** anual."
                 )
+
+                # ── Descomposición de varianza ──────────────────────────────
+                section_title("🔬", "Descomposición de la Varianza")
+                if "varianza_total" in data and "varianza_sistematica" in data:
+                    var_total = data["varianza_total"]
+                    var_sist  = data["varianza_sistematica"]
+                    var_no_sist = data.get("varianza_no_sistematica", var_total - var_sist)
+                    r2 = data.get("r_squared", var_sist / var_total if var_total > 0 else 0)
+
+                    cv1, cv2, cv3 = st.columns(3)
+                    cv1.metric("Varianza Total (σ²)", f"{var_total:.6f}")
+                    cv2.metric("Varianza Sistemática (β²σ²_m)", f"{var_sist:.6f}",
+                               help="Riesgo no diversificable — determinado por el mercado")
+                    cv3.metric("Varianza No Sistemática (σ²_ε)", f"{var_no_sist:.6f}",
+                               help="Riesgo idiosincrático — eliminable con diversificación")
+
+                    fig_pie = go.Figure(go.Pie(
+                        labels=["Sistemática (β²σ²_m)", "No Sistemática (σ²_ε)"],
+                        values=[var_sist, var_no_sist],
+                        marker_colors=[PRIMARY, MUTED],
+                        hole=0.5,
+                        textinfo="label+percent"
+                    ))
+                    fig_pie.update_layout(
+                        title=f"Descomposición de Varianza · R² = {r2:.4f}",
+                        height=300, **PLOT_TPL)
+                    st.plotly_chart(fig_pie, use_container_width=True)
+                    badge_html(
+                        f"💡 R² = {r2:.2%} de la varianza de {ticker} es explicada por el mercado (riesgo sistemático). "
+                        f"El {1-r2:.2%} restante es riesgo idiosincrático, eliminable con diversificación.",
+                        "info"
+                    )
+                else:
+                    st.caption("ℹ️ El backend no retornó varianza_total / varianza_sistematica. Agrégalas al response de /api/capm/beta.")
+
+                # ── Tabla resumen CAPM ──────────────────────────────────────
+                # ── Alpha de Jensen ─────────────────────────────────────────
+                section_title("🏆", "Alpha de Jensen (rendimiento activo vs CAPM)")
+                alpha_j = data.get("alpha_jensen_pct", None)
+                col_aj1, col_aj2 = st.columns(2)
+                with col_aj1:
+                    if alpha_j is not None:
+                        col_aj1.metric(
+                            "Alpha de Jensen (α)",
+                            f"{alpha_j:.4%}",
+                            delta=f"{alpha_j:.4%}",
+                            help="Intercepto de la regresión OLS anualizado (× 252). Mide el exceso de retorno ajustado por riesgo sistemático."
+                        )
+                        if alpha_j > 0:
+                            badge_html(
+                                f"✅ Alpha positivo ({alpha_j:.4%}): el activo genera rendimiento por encima de lo predicho por CAPM — gestión activa añade valor.",
+                                "success"
+                            )
+                        elif alpha_j < 0:
+                            badge_html(
+                                f"⚠️ Alpha negativo ({alpha_j:.4%}): el activo rinde por debajo de lo esperado dado su riesgo sistemático.",
+                                "error"
+                            )
+                        else:
+                            badge_html("🔵 Alpha ≈ 0: retorno consistente con CAPM — sin valor ni destrucción por gestión activa.", "info")
+                    else:
+                        badge_html(
+                            "ℹ️ Backend no retornó alpha_jensen_pct. Añade el campo al response de /api/capm/beta "
+                            "(intercepto OLS × 252).",
+                            "warning"
+                        )
+                with col_aj2:
+                    st.markdown("""
+                    <div class="card">
+                        <div style="font-size:13px;color:#94A3B8;line-height:1.7;">
+                            <b style="color:#C4B5FD;">Fórmula:</b><br>
+                            α_Jensen = R_activo − [Rf + β·(Rm − Rf)]<br><br>
+                            <b style="color:#C4B5FD;">Interpretación:</b><br>
+                            α &gt; 0 → el activo <i>supera</i> su precio teórico de riesgo<br>
+                            α &lt; 0 → el activo <i>no compensa</i> el riesgo asumido<br>
+                            α = 0 → precio de mercado eficiente (HME)
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                section_title("📋", "Tabla Resumen CAPM")
+                alpha_j_val = f"{data['alpha_jensen_pct']:.4%}" if data.get("alpha_jensen_pct") is not None else "⚠️ Pendiente backend"
+                resumen_capm = pd.DataFrame({
+                    "Parámetro": ["Beta (β)","Tasa libre de riesgo (Rf)","Prima de mercado (Rm − Rf)",
+                                  "Retorno esperado CAPM","Alpha de Jensen (α)","R² (bondad ajuste)","Clasificación"],
+                    "Valor": [
+                        f"{data['beta']:.4f}",
+                        f"{data['rf_anual_pct']:.2%}",
+                        f"{data['rm_anual_pct'] - data['rf_anual_pct']:.2%}",
+                        f"{data['retorno_esperado_pct']:.2%}",
+                        alpha_j_val,
+                        f"{data['r_squared']:.4f}",
+                        data.get("clasificacion","N/A")
+                    ]
+                })
+                st.dataframe(resumen_capm.set_index("Parámetro"), use_container_width=True)
     else:
         st.markdown('<div class="badge-info">👆 Selecciona activos y pulsa <b>Calcular</b>.</div>', unsafe_allow_html=True)
 
@@ -1031,6 +1257,66 @@ elif opcion == "🛡️  Módulo 5 · VaR y CVaR":
                     f"**${inversion:,.0f}** es **${data['perdida_hist_usd']:,.2f}** (histórico). "
                     f"CVaR (peor escenario promedio): **${data['perdida_cvar_usd']:,.2f}**."
                 )
+
+                # ── Backtesting Kupiec ──────────────────────────────────────
+                section_title("🧪", "Backtesting de Kupiec (Proportion of Failures)")
+                if "kupiec" in data:
+                    kup = data["kupiec"]
+                    k1, k2, k3, k4 = st.columns(4)
+                    k1.metric("Excedencias observadas (N)", str(kup.get("n_excedencias", "N/A")))
+                    k2.metric("Días backtest (T)", str(kup.get("dias_backtest", "≥250")))
+                    k3.metric("LR_POF estadístico", f"{kup.get('lr_pof', 0):.4f}")
+                    k4.metric("p-valor Kupiec", fmt_pval(kup.get("pvalor")))
+
+                    rechaza = kup.get("rechaza_h0", kup.get("lr_pof", 0) > 3.84)
+                    freq_teorica = 1 - confianza
+                    freq_obs = kup.get("frecuencia_observada", kup.get("n_excedencias", 0) / kup.get("dias_backtest", 250))
+
+                    with st.expander("📊 Interpretación Kupiec detallada", expanded=True):
+                        st.markdown(f"""
+**Test de Kupiec — Proportion of Failures (POF):**
+
+- **H₀:** La frecuencia de excedencias es consistente con el nivel de confianza ({confianza:.0%}) → Frecuencia teórica = **{freq_teorica:.2%}**
+- **Frecuencia observada:** {freq_obs:.2%}
+- **LR_POF = {kup.get('lr_pof', 0):.4f}** (valor crítico χ²(1) al 95%: **3.84**)
+- **Decisión:** {"❌ Se rechaza H₀ — el modelo **{'subestima' if freq_obs > freq_teorica else 'sobrestima'}** el riesgo." if rechaza else "✅ No se rechaza H₀ — el modelo es coherente con la frecuencia de excedencias."}
+                        """)
+                    if rechaza:
+                        badge_html(
+                            f"⚠️ Kupiec rechaza el VaR al {confianza:.0%}. "
+                            f"Frecuencia observada ({freq_obs:.2%}) {'mayor' if freq_obs > freq_teorica else 'menor'} "
+                            f"que la teórica ({freq_teorica:.2%}). Considera recalibrar el modelo.",
+                            "error"
+                        )
+                    else:
+                        badge_html(
+                            f"✅ Kupiec no rechaza el VaR. El modelo es estadísticamente válido al {confianza:.0%}.",
+                            "success"
+                        )
+
+                    # Tabla Kupiec por metodología
+                    if "kupiec_por_metodo" in data:
+                        st.markdown("**Aplicación de Kupiec por metodología:**")
+                        kdf = pd.DataFrame(data["kupiec_por_metodo"])
+                        st.dataframe(kdf.set_index("metodo") if "metodo" in kdf.columns else kdf, use_container_width=True)
+                else:
+                    st.caption("ℹ️ El backend no retornó backtesting Kupiec. Agrega la clave `kupiec` al response de /api/var/calcular.")
+
+                # ── Sensibilidad a colas ────────────────────────────────────
+                with st.expander("📖 Sensibilidad a Colas y Supuestos Distribucionales"):
+                    st.markdown(f"""
+**Comparación de supuestos entre metodologías:**
+
+| Metodología | Supuesto distribucional | Sensible a colas pesadas |
+|---|---|---|
+| Paramétrico | Normal — subestima colas | Baja |
+| Histórico | Empírico — captura historia real | Media |
+| Montecarlo | Depende de la distribución simulada | Alta (con t-Student) |
+
+- **CVaR** es más conservador que VaR porque captura el promedio de pérdidas más allá del umbral.
+- Si la curtosis del activo es alta (> 3), el VaR paramétrico tiende a **subestimar** el riesgo real.
+- Diferencia entre métodos: {abs(data['var_parametrico_diario_pct'] - data['var_historico_diario_pct']):.2%} — {"diferencia significativa, el activo tiene colas pesadas." if abs(data['var_parametrico_diario_pct'] - data['var_historico_diario_pct']) > 0.005 else "métodos convergen, distribución cercana a normal."}
+                    """)
     else:
         st.markdown('<div class="badge-info">👆 Selecciona activos y pulsa <b>Calcular</b>.</div>', unsafe_allow_html=True)
 
@@ -1046,6 +1332,8 @@ elif opcion == "🎯  Módulo 6 · Markowitz":
         st.markdown("### ⚙️ Parámetros")
         tickers_sel = st.multiselect("Activos", TICKER_LIST, default=TICKER_LIST[:5], key="m6_tickers")
         num_port = st.select_slider("Simulaciones", [1000, 5000, 10000], value=5000, key="m6_nport")
+        no_short = st.checkbox("Sin ventas en corto (w ≥ 0)", value=True, key="m6_noshort",
+                               help="Versión A: permite pesos negativos. Versión B: solo posiciones largas.")
         calcular = st.button("🔄 Calcular Frontera", type="primary", use_container_width=True)
 
     n_sel = len(tickers_sel)
@@ -1057,14 +1345,15 @@ elif opcion == "🎯  Módulo 6 · Markowitz":
         else:
             with st.spinner("Simulando portafolios Montecarlo..."):
                 data = api_post("/api/markowitz/frontera", {
-                    "tickers": tickers_sel, "num_portafolios": num_port, "periodo": "2y"
+                    "tickers": tickers_sel, "num_portafolios": num_port,
+                    "periodo": "2y", "no_short_selling": no_short
                 })
             if data:
                 st.session_state["m6_data"] = data
 
     data = st.session_state.get("m6_data")
     if data:
-        tab1, tab2, tab3 = st.tabs(["📈 Frontera Eficiente", "🔗 Correlaciones", "📋 Portafolios Óptimos"])
+        tab1, tab2, tab3, tab4 = st.tabs(["📈 Frontera Eficiente", "🔗 Correlaciones", "📋 Portafolios Óptimos", "⚖️ Con vs Sin Restricción"])
 
         with tab1:
             fe = pd.DataFrame(data["frontera_eficiente"])
@@ -1110,6 +1399,45 @@ elif opcion == "🎯  Módulo 6 · Markowitz":
                     st.dataframe(pesos_df.style.format("{:.2%}").bar(color=color),
                                  use_container_width=True)
                     st.markdown('</div>', unsafe_allow_html=True)
+
+        with tab4:
+            section_title("⚖️", "Comparación: Con vs Sin Restricción de No-Negatividad")
+            st.markdown("""
+| Versión | Restricción | Interpretación Financiera |
+|---|---|---|
+| **A — Sin restricción** | wᵢ ∈ ℝ | Permite ventas en corto (pesos negativos) |
+| **B — Con no-negatividad** | wᵢ ≥ 0 ∀i | Solo posiciones largas — más realista para inversionistas minoristas |
+            """)
+            ms = data["portafolio_max_sharpe"]
+            pesos_items = list(ms["pesos"].items())
+            activos_cero = [a for a, w in pesos_items if abs(w) < 0.001]
+            activos_negativos = [a for a, w in pesos_items if w < -0.001]
+            if activos_cero:
+                badge_html(f"📌 Con restricción w≥0, los activos con peso cero (esquina del conjunto factible): {', '.join(activos_cero)}", "info")
+            if activos_negativos:
+                badge_html(f"⚠️ Activos con peso negativo (ventas en corto activas en Versión A): {', '.join(activos_negativos)}", "warning")
+            else:
+                badge_html("✅ Ningún activo tiene peso negativo — ambas versiones producen el mismo portafolio.", "success")
+            badge_html("💡 Imposición de no-negatividad: reduce el conjunto factible (frontera se desplaza a la derecha-arriba) — mayor costo en términos de varianza para el mismo retorno.", "info")
+
+            # ── QP vs MC ───────────────────────────────────────────────────
+            section_title("🔢", "Programación Cuadrática (QP) vs Simulación Montecarlo")
+            st.markdown("""
+| Método | Cómo encuentra el óptimo | Garantía de optimalidad | Costo computacional |
+|---|---|---|---|
+| **Montecarlo** | Muestrea N portafolios aleatorios y selecciona el mejor | No — depende de N | Bajo — O(N) |
+| **QP (cvxpy / OSQP)** | Resuelve el problema cuadrático de forma exacta | Sí — KKT globales | Medio — O(n³) |
+            """)
+            badge_html(
+                "📌 El portafolio óptimo mostrado (Máx. Sharpe y Mín. Varianza) debe provenir del solver QP (cvxpy) en el backend. "
+                "La nube de puntos Montecarlo es solo visualización de la frontera — los puntos marcados con ⭐ y 💎 son los QP exactos.",
+                "info"
+            )
+            badge_html(
+                "💡 Plan fase 2.3: verificar que /api/markowitz/frontera use markowitz_qp() con cvxpy internamente "
+                "y que portafolio_max_sharpe y portafolio_min_varianza vengan del solver, no del argmax de la simulación.",
+                "warning"
+            )
     else:
         st.markdown('<div class="badge-info">👆 Selecciona los activos y pulsa <b>Calcular Frontera</b>.</div>', unsafe_allow_html=True)
 
@@ -1195,6 +1523,15 @@ elif opcion == "🚦  Módulo 7 · Señales ★":
 
                 st.markdown("<br>", unsafe_allow_html=True)
                 badge_html("⚠️ Señales automáticas — no constituyen recomendación de inversión.", "warning")
+
+                # ── Historial de señales (signals_log) ─────────────────────
+                if "historial" in data and data["historial"]:
+                    with st.expander(f"📜 Historial de señales persistido — {ticker}", expanded=False):
+                        hist_df = pd.DataFrame(data["historial"])
+                        if "timestamp" in hist_df.columns:
+                            hist_df["timestamp"] = pd.to_datetime(hist_df["timestamp"])
+                        st.dataframe(hist_df, use_container_width=True)
+                        st.caption("Datos persistidos en tabla signals_log de SQLite.")
     else:
         st.markdown('<div class="badge-info">👆 Selecciona activos y pulsa <b>Actualizar</b>.</div>', unsafe_allow_html=True)
 
@@ -1215,11 +1552,16 @@ elif opcion == "🌍  Módulo 8 · Macro ★":
     st.markdown(f'<div class="autoload-banner">⚡ Comparativa portafolio ({len(tickers_sel)} activos) vs S&P 500</div>', unsafe_allow_html=True)
 
     section_title("🌐", "Indicadores Macroeconómicos")
+    macro_data = api_get("/api/macro/indicadores") or {}
+    rf_val   = macro_data.get("rf_10y_pct", None)
+    cpi_val  = macro_data.get("cpi_pct", None)
+    trm_val  = macro_data.get("trm_cop_usd", None)
+    fed_val  = macro_data.get("fed_funds_pct", None)
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Tasa Libre de Riesgo (10Y)", "4.32%", "+0.05 bps")
-    m2.metric("Inflación (CPI)", "3.10%", "-0.10%", delta_color="inverse")
-    m3.metric("TRM COP/USD", "$4,000", "+15")
-    m4.metric("Fed Funds Rate", "5.25%", "Sin cambio")
+    m1.metric("Tasa Libre de Riesgo (10Y)", f"{rf_val:.2%}" if rf_val else "—", help="FRED DGS10")
+    m2.metric("Inflación (CPI)", f"{cpi_val:.2%}" if cpi_val else "—", delta_color="inverse", help="FRED CPIAUCSL")
+    m3.metric("TRM COP/USD", f"${trm_val:,.0f}" if trm_val else "—", help="Banco de la República / API")
+    m4.metric("Fed Funds Rate", f"{fed_val:.2%}" if fed_val else "—", help="FRED DGS3MO")
 
     if calcular:
         if not tickers_sel:
@@ -1272,10 +1614,12 @@ elif opcion == "🌍  Módulo 8 · Macro ★":
         with cb2:
             st.markdown('<div class="card">', unsafe_allow_html=True)
             st.markdown("**📊 Resumen de Desempeño**")
+            sharpe_port = (data.get('rendimiento_portafolio_pct', 0) - (rf_val or 0)) / data.get('volatilidad_anual_pct', 1) if data.get('volatilidad_anual_pct', 0) > 0 else 0
             st.table(pd.DataFrame({
-                "Métrica": ["Retorno Anualizado","Volatilidad Anual","Máx. Drawdown"],
+                "Métrica": ["Retorno Anualizado","Volatilidad Anual","Ratio de Sharpe","Máx. Drawdown"],
                 "Valor": [f"{data['rendimiento_portafolio_pct']:.2%}",
                           f"{data['volatilidad_anual_pct']:.2%}",
+                          f"{sharpe_port:.4f}",
                           f"{data['max_drawdown_pct']:.2%}"]
             }).set_index("Métrica"))
             st.markdown('</div>', unsafe_allow_html=True)
@@ -1294,3 +1638,503 @@ elif opcion == "🌍  Módulo 8 · Macro ★":
             )
     else:
         st.markdown('<div class="badge-info">👆 Selecciona los activos del portafolio y pulsa <b>Calcular</b>.</div>', unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  MÓDULO 9 — RENTA FIJA ★
+# ══════════════════════════════════════════════════════════════════════════════
+elif opcion == "📐  Módulo 9 · Renta Fija ★":
+    page_header("📐 Módulo 9 · Renta Fija",
+                "Curva de rendimiento, Nelson-Siegel, Duración y Convexidad del bono sintético")
+
+    with st.sidebar:
+        st.markdown("### ⚙️ Parámetros")
+        cupon = st.number_input("Cupón anual (%)", value=5.0, step=0.25, key="m9_c")
+        vencimiento = st.slider("Vencimiento (años)", 1, 30, 10, key="m9_t")
+        valor_nominal = st.number_input("Valor nominal (USD)", value=1000, step=100, key="m9_vn")
+        frecuencia = st.selectbox("Frecuencia de cupón", ["Anual","Semestral","Trimestral"], key="m9_freq")
+        calcular = st.button("🔄 Calcular", type="primary", use_container_width=True)
+
+    freq_map = {"Anual": 1, "Semestral": 2, "Trimestral": 4}
+    freq_n = freq_map[frecuencia]
+
+    st.markdown(f'<div class="autoload-banner">⚡ Bono sintético · Cupón {cupon}% · Vencimiento {vencimiento}a · Nominal ${valor_nominal:,}</div>', unsafe_allow_html=True)
+
+    # ── Curva de rendimiento ─────────────────────────────────────────────────
+    section_title("📈", "Curva de Rendimiento (FRED)")
+    curva_data = api_get("/api/curva-rendimiento/puntos") or {}
+    if curva_data and "puntos" in curva_data:
+        puntos = pd.DataFrame(curva_data["puntos"])
+        fig_curva = go.Figure()
+        fig_curva.add_trace(go.Scatter(
+            x=puntos["vencimiento_anios"], y=puntos["tasa_pct"],
+            mode="markers+lines", name="Spot FRED",
+            line=dict(color=CYAN, width=2),
+            marker=dict(size=9, color=PRIMARY, line=dict(color=CYAN, width=2))
+        ))
+        if "ns_ajustada" in puntos.columns:
+            fig_curva.add_trace(go.Scatter(
+                x=puntos["vencimiento_anios"], y=puntos["ns_ajustada"],
+                mode="lines", name="Nelson-Siegel ajustada",
+                line=dict(color=WARNING, width=2.5, dash="dot")
+            ))
+        fig_curva.update_layout(
+            title="Curva Spot de Tesoros US (FRED)",
+            xaxis_title="Vencimiento (años)", yaxis_title="Tasa (%)",
+            height=380, **PLOT_TPL)
+        st.plotly_chart(fig_curva, use_container_width=True)
+
+        # Forma de la curva
+        tasas = puntos["tasa_pct"].tolist()
+        if len(tasas) >= 2:
+            spread = tasas[-1] - tasas[0]
+            if spread > 0.5:
+                forma = "Normal (pendiente positiva) — señal de expansión económica."
+                badge_html(f"📊 Curva {forma}", "success")
+            elif spread < -0.5:
+                forma = "Invertida (pendiente negativa) — señal de posible recesión."
+                badge_html(f"⚠️ Curva {forma}", "error")
+            else:
+                forma = "Plana — transición o incertidumbre en política monetaria."
+                badge_html(f"🔵 Curva {forma}", "info")
+    else:
+        badge_html("ℹ️ Agrega el endpoint /api/curva-rendimiento/puntos al backend (retorna puntos FRED: DGS3MO, DGS1, DGS2, DGS5, DGS10, DGS30).", "warning")
+
+    # ── Nelson-Siegel ────────────────────────────────────────────────────────
+    if calcular or st.session_state.get("m9_ns"):
+        if calcular:
+            with st.spinner("Ajustando Nelson-Siegel y calculando bono..."):
+                ns_data = api_get("/api/curva-rendimiento/nelson-siegel")
+                bono_data = api_post("/api/bono/duracion", {
+                    "cupon_pct": cupon, "vencimiento": vencimiento,
+                    "valor_nominal": valor_nominal, "frecuencia": freq_n
+                })
+            if ns_data:
+                st.session_state["m9_ns"] = ns_data
+            if bono_data:
+                st.session_state["m9_bono"] = bono_data
+
+        ns_data = st.session_state.get("m9_ns")
+        bono_data = st.session_state.get("m9_bono")
+
+        if ns_data:
+            section_title("🧮", "Ajuste Nelson-Siegel")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("β₀ (nivel largo plazo)", f"{ns_data.get('beta0', 0):.4f}")
+            c2.metric("β₁ (pendiente)", f"{ns_data.get('beta1', 0):.4f}")
+            c3.metric("β₂ (curvatura)", f"{ns_data.get('beta2', 0):.4f}")
+            c4.metric("λ (velocidad decay)", f"{ns_data.get('lambda_', 0):.4f}")
+            rmse = ns_data.get("rmse")
+            if rmse is not None:
+                badge_html(f"📐 RMSE del ajuste Nelson-Siegel: {rmse:.6f} — {'excelente ajuste.' if rmse < 0.001 else 'ajuste aceptable.' if rmse < 0.01 else 'revisar datos.'}", "info")
+
+        if bono_data:
+            section_title("💼", "Bono Sintético — Duración y Convexidad")
+            b1, b2, b3, b4 = st.columns(4)
+            b1.metric("Precio del Bono", f"${bono_data.get('precio', 0):,.4f}")
+            b2.metric("Duración de Macaulay (D)", f"{bono_data.get('duracion_macaulay', 0):.4f} años")
+            b3.metric("Duración Modificada (D*)", f"{bono_data.get('duracion_modificada', 0):.4f}")
+            b4.metric("Convexidad (C)", f"{bono_data.get('convexidad', 0):.4f}")
+
+            ytm = bono_data.get("ytm_pct", 0)
+
+            # Sensibilidad del precio a shocks de tasa
+            section_title("📉", "Sensibilidad del Precio ante Shocks de Tasa")
+            shocks_bp = [-200, -100, -50, 50, 100, 200]
+            D_mod = bono_data.get("duracion_modificada", 0)
+            C = bono_data.get("convexidad", 0)
+            precio_base = bono_data.get("precio", 1000)
+            rows = []
+            for shock in shocks_bp:
+                dy = shock / 10000
+                dp_lineal = -D_mod * dy * 100
+                dp_convex = (-D_mod * dy + 0.5 * C * dy**2) * 100
+                precio_lineal = precio_base * (1 + dp_lineal / 100)
+                precio_convex = precio_base * (1 + dp_convex / 100)
+                rows.append({
+                    "Shock (pb)": f"{shock:+d}",
+                    "ΔP/P Lineal (%)": f"{dp_lineal:.3f}%",
+                    "ΔP/P con Convexidad (%)": f"{dp_convex:.3f}%",
+                    "Precio Lineal": f"${precio_lineal:,.2f}",
+                    "Precio c/ Convexidad": f"${precio_convex:,.2f}",
+                })
+            st.dataframe(pd.DataFrame(rows).set_index("Shock (pb)"), use_container_width=True)
+
+            # Gráfico de sensibilidad
+            shocks_cont = list(range(-300, 310, 10))
+            dp_lin = [-D_mod * s/10000 * 100 for s in shocks_cont]
+            dp_cvx = [(-D_mod * s/10000 + 0.5 * C * (s/10000)**2) * 100 for s in shocks_cont]
+            fig_sens = go.Figure()
+            fig_sens.add_trace(go.Scatter(x=shocks_cont, y=dp_lin, name="Lineal (Duración)",
+                line=dict(color=WARNING, width=2, dash="dot")))
+            fig_sens.add_trace(go.Scatter(x=shocks_cont, y=dp_cvx, name="Con Convexidad",
+                line=dict(color=PRIMARY, width=2.5)))
+            fig_sens.add_vline(x=0, line_dash="dot", line_color=MUTED, opacity=0.5)
+            fig_sens.add_hline(y=0, line_dash="dot", line_color=MUTED, opacity=0.5)
+            fig_sens.update_layout(
+                title="Sensibilidad Precio del Bono vs Shock de Tasa",
+                xaxis_title="Shock de tasa (pb)", yaxis_title="ΔP/P (%)",
+                height=360, **PLOT_TPL)
+            st.plotly_chart(fig_sens, use_container_width=True)
+
+            with st.expander("📖 Interpretación Duración y Convexidad"):
+                st.markdown(f"""
+**Duración de Macaulay (D = {bono_data.get('duracion_macaulay',0):.2f} años):** Tiempo promedio ponderado en que se recuperan los flujos. Mide la vida "económica" del bono.
+
+**Duración Modificada (D* = {bono_data.get('duracion_modificada',0):.2f}):** Sensibilidad % del precio ante un cambio de 1% en la tasa. Un shock de +100pb produce aproximadamente -{D_mod:.2f}% en precio.
+
+**Convexidad (C = {C:.4f}):** Curvatura de la relación precio-tasa. Un bono con mayor convexidad sube más ante caídas de tasa y baja menos ante subidas — siempre beneficioso.
+
+**Aproximación de segundo orden:** ΔP/P ≈ −D* · Δy + ½ · C · (Δy)²
+                """)
+    else:
+        st.markdown('<div class="badge-info">👆 Configura el bono en el panel izquierdo y pulsa <b>Calcular</b>.</div>', unsafe_allow_html=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  MÓDULO 10 — OPCIONES ★ (Black-Scholes + Greeks)
+# ══════════════════════════════════════════════════════════════════════════════
+elif opcion == "🎲  Módulo 10 · Opciones ★":
+    from scipy.stats import norm as sci_norm
+
+    page_header("🎲 Módulo 10 · Opciones — Black-Scholes y los 5 Greeks",
+                "Valoración teórica sobre activos del portafolio — precio actual como subyacente")
+
+    with st.sidebar:
+        st.markdown("### ⚙️ Parámetros")
+        ticker_op = st.selectbox("Activo subyacente", TICKER_LIST, key="m10_ticker")
+        strike    = st.number_input("Strike K (USD)", value=150.0, step=1.0, key="m10_k")
+        T_dias    = st.slider("Vencimiento T (días)", 7, 365, 30, key="m10_t")
+        r_op      = st.number_input("Tasa libre de riesgo r (%)", value=4.5, step=0.1, key="m10_r") / 100
+        tipo_op   = st.radio("Tipo de opción", ["Call", "Put", "Ambas"], key="m10_tipo", horizontal=True)
+        usar_vol_garch = st.checkbox("Usar vol. EWMA/GARCH (Mód.3)", value=True, key="m10_garch")
+        calcular  = st.button("🔄 Valorar", type="primary", use_container_width=True)
+
+    T_anios = T_dias / 365
+
+    st.markdown(f'<div class="autoload-banner">⚡ Black-Scholes · {ticker_op} · K={strike} · T={T_dias}d · r={r_op:.2%}</div>', unsafe_allow_html=True)
+
+    with st.expander("📖 Justificación: ¿Por qué opciones hipotéticas?", expanded=False):
+        st.markdown("""
+No se requiere data real de derivados. Las opciones se valoran sobre los **mismos activos del portafolio del Mód.1**,
+usando el precio actual como subyacente S, la volatilidad estimada del Mód.3 (EWMA o GARCH),
+y un Strike K y vencimiento T elegidos por el usuario.
+
+Esto permite practicar la mecánica completa de Black-Scholes sin depender de APIs comerciales de opciones.
+
+**Paridad put-call (verificada numéricamente):** C − P = S − K·e^(−rT)
+        """)
+
+    if calcular or st.session_state.get("m10_data"):
+        if calcular:
+            with st.spinner("Obteniendo precio y volatilidad..."):
+                bsdata = api_post("/api/opciones/blackscholes", {
+                    "ticker": ticker_op, "strike": strike,
+                    "vencimiento_dias": T_dias, "tasa_libre_riesgo": r_op,
+                    "usar_vol_garch": usar_vol_garch
+                })
+            if bsdata:
+                st.session_state["m10_data"] = bsdata
+
+        bsdata = st.session_state.get("m10_data")
+
+        if bsdata:
+            S   = bsdata.get("precio_spot", strike)
+            vol = bsdata.get("sigma", 0.20)
+
+            # ── Cálculo BS en frontend (redundante con backend, para validación) ──
+            d1 = (np.log(S / strike) + (r_op + 0.5 * vol**2) * T_anios) / (vol * np.sqrt(T_anios)) if T_anios > 0 and vol > 0 else 0
+            d2 = d1 - vol * np.sqrt(T_anios)
+            call_price = S * sci_norm.cdf(d1) - strike * np.exp(-r_op * T_anios) * sci_norm.cdf(d2)
+            put_price  = strike * np.exp(-r_op * T_anios) * sci_norm.cdf(-d2) - S * sci_norm.cdf(-d1)
+            parity_diff = abs((call_price - put_price) - (S - strike * np.exp(-r_op * T_anios)))
+
+            # Greeks
+            delta_call = sci_norm.cdf(d1)
+            delta_put  = sci_norm.cdf(d1) - 1
+            gamma      = sci_norm.pdf(d1) / (S * vol * np.sqrt(T_anios)) if T_anios > 0 and vol > 0 else 0
+            vega       = S * np.sqrt(T_anios) * sci_norm.pdf(d1) / 100
+            theta_call = (-(S * sci_norm.pdf(d1) * vol) / (2 * np.sqrt(T_anios))
+                          - r_op * strike * np.exp(-r_op * T_anios) * sci_norm.cdf(d2)) / 365 if T_anios > 0 else 0
+            theta_put  = (-(S * sci_norm.pdf(d1) * vol) / (2 * np.sqrt(T_anios))
+                          + r_op * strike * np.exp(-r_op * T_anios) * sci_norm.cdf(-d2)) / 365 if T_anios > 0 else 0
+            rho_call   = strike * T_anios * np.exp(-r_op * T_anios) * sci_norm.cdf(d2) / 100
+            rho_put    = -strike * T_anios * np.exp(-r_op * T_anios) * sci_norm.cdf(-d2) / 100
+
+            # ── Precios y paridad ────────────────────────────────────────────
+            section_title("💰", "Precios Black-Scholes")
+            p1, p2, p3, p4, p5 = st.columns(5)
+            p1.metric("Precio Spot (S)", f"${S:,.2f}")
+            p2.metric("Strike (K)", f"${strike:,.2f}")
+            p3.metric("Volatilidad (σ)", f"{vol:.2%}", help="EWMA/GARCH del Mód.3")
+            if tipo_op in ["Call", "Ambas"]:
+                p4.metric("Call Price", f"${call_price:,.4f}")
+            if tipo_op in ["Put", "Ambas"]:
+                p5.metric("Put Price", f"${put_price:,.4f}")
+
+            if parity_diff < 0.01:
+                badge_html(f"✅ Paridad Put-Call verificada · C − P − (S − Ke^(−rT)) = {parity_diff:.6f} ≈ 0", "success")
+            else:
+                badge_html(f"⚠️ Discrepancia en paridad Put-Call: {parity_diff:.4f}", "warning")
+
+            # ── Tabla de Greeks ──────────────────────────────────────────────
+            section_title("🔬", "Los Cinco Greeks")
+            greeks_df = pd.DataFrame({
+                "Greek": ["Delta (Δ)", "Gamma (Γ)", "Vega (ν)", "Theta (Θ)", "Rho (ρ)"],
+                "Sentido": ["∂V/∂S", "∂²V/∂S²", "∂V/∂σ", "∂V/∂t", "∂V/∂r"],
+                "Call": [f"{delta_call:.4f}", f"{gamma:.6f}", f"{vega:.4f}", f"{theta_call:.4f}", f"{rho_call:.4f}"],
+                "Put":  [f"{delta_put:.4f}", f"{gamma:.6f}", f"{vega:.4f}", f"{theta_put:.4f}", f"{rho_put:.4f}"],
+                "Interpretación": [
+                    "Cambio en precio por $1 en S",
+                    "Curvatura de Delta vs S",
+                    "Cambio por +1% en volatilidad",
+                    "Decay de valor por día",
+                    "Cambio por +1% en tasa libre de riesgo"
+                ]
+            })
+            st.dataframe(greeks_df.set_index("Greek"), use_container_width=True)
+
+            # ── Gráficos de payoff y precio vs spot ─────────────────────────
+            section_title("📊", "Visualizaciones")
+            spots = np.linspace(max(1, S * 0.6), S * 1.4, 200)
+            fig_bs = make_subplots(rows=1, cols=2,
+                subplot_titles=("Payoff al vencimiento (T→0)", "Precio de la opción vs Spot"))
+
+            # Payoff
+            if tipo_op in ["Call", "Ambas"]:
+                payoff_call = np.maximum(spots - strike, 0)
+                fig_bs.add_trace(go.Scatter(x=spots, y=payoff_call, name="Payoff Call",
+                    line=dict(color=SUCCESS, width=2.5)), row=1, col=1)
+            if tipo_op in ["Put", "Ambas"]:
+                payoff_put = np.maximum(strike - spots, 0)
+                fig_bs.add_trace(go.Scatter(x=spots, y=payoff_put, name="Payoff Put",
+                    line=dict(color=DANGER, width=2.5)), row=1, col=1)
+            fig_bs.add_vline(x=strike, line_dash="dot", line_color=MUTED, opacity=0.6, row=1, col=1)
+            fig_bs.add_vline(x=S, line_dash="dash", line_color=WARNING, opacity=0.7, row=1, col=1)
+
+            # Precio BS vs Spot
+            def bs_price(s_arr, K, T, r, sig, tipo):
+                d1_ = (np.log(s_arr/K) + (r + 0.5*sig**2)*T) / (sig*np.sqrt(T) + 1e-12)
+                d2_ = d1_ - sig*np.sqrt(T)
+                if tipo == "call":
+                    return s_arr * sci_norm.cdf(d1_) - K*np.exp(-r*T)*sci_norm.cdf(d2_)
+                else:
+                    return K*np.exp(-r*T)*sci_norm.cdf(-d2_) - s_arr*sci_norm.cdf(-d1_)
+
+            if tipo_op in ["Call", "Ambas"]:
+                prices_call = bs_price(spots, strike, T_anios, r_op, vol, "call")
+                fig_bs.add_trace(go.Scatter(x=spots, y=prices_call, name="Precio Call (BS)",
+                    line=dict(color=SUCCESS, width=2, dash="dot")), row=1, col=2)
+                # Payoff intrínseco superpuesto
+                fig_bs.add_trace(go.Scatter(x=spots, y=np.maximum(spots - strike, 0), name="Valor intrínseco Call",
+                    line=dict(color=SUCCESS, width=1, dash="dashdot"), opacity=0.5), row=1, col=2)
+            if tipo_op in ["Put", "Ambas"]:
+                prices_put = bs_price(spots, strike, T_anios, r_op, vol, "put")
+                fig_bs.add_trace(go.Scatter(x=spots, y=prices_put, name="Precio Put (BS)",
+                    line=dict(color=DANGER, width=2, dash="dot")), row=1, col=2)
+                fig_bs.add_trace(go.Scatter(x=spots, y=np.maximum(strike - spots, 0), name="Valor intrínseco Put",
+                    line=dict(color=DANGER, width=1, dash="dashdot"), opacity=0.5), row=1, col=2)
+
+            fig_bs.add_vline(x=strike, line_dash="dot", line_color=MUTED, opacity=0.6, row=1, col=2)
+            fig_bs.add_vline(x=S, line_dash="dash", line_color=WARNING, opacity=0.7, row=1, col=2)
+            fig_bs.update_layout(height=420, **PLOT_TPL)
+            st.plotly_chart(fig_bs, use_container_width=True)
+
+            # ── Delta vs Spot ────────────────────────────────────────────────
+            section_title("Δ", "Delta vs Spot (convergencia a función escalón cuando T→0)")
+            venc_list = [T_dias, max(1, T_dias // 2), 1]
+            fig_delta = go.Figure()
+            for td in venc_list:
+                ta = td / 365
+                d1_arr = (np.log(spots/strike) + (r_op + 0.5*vol**2)*ta) / (vol*np.sqrt(ta) + 1e-12)
+                delta_arr = sci_norm.cdf(d1_arr)
+                fig_delta.add_trace(go.Scatter(x=spots, y=delta_arr,
+                    name=f"T={td}d", line=dict(width=2)))
+            fig_delta.add_vline(x=strike, line_dash="dot", line_color=MUTED, opacity=0.6)
+            fig_delta.update_layout(
+                title="Delta (Call) vs Spot para distintos T",
+                xaxis_title="Precio Spot", yaxis_title="Delta",
+                height=320, **PLOT_TPL)
+            st.plotly_chart(fig_delta, use_container_width=True)
+
+            # ── Volatilidad implícita ────────────────────────────────────────
+            if "vol_implicita" in bsdata:
+                section_title("📡", "Volatilidad Implícita")
+                vi = bsdata["vol_implicita"]
+                c_vi1, c_vi2 = st.columns(2)
+                c_vi1.metric("Vol. Implícita (σ_imp)", f"{vi:.2%}")
+                c_vi2.metric("Vol. Histórica (σ_hist)", f"{vol:.2%}")
+                diff_vi = vi - vol
+                badge_html(
+                    f"{'📈 Mercado paga prima de volatilidad' if diff_vi > 0 else '📉 Mercado descuenta volatilidad'} — "
+                    f"σ_imp − σ_hist = {diff_vi:+.2%}",
+                    "info"
+                )
+        else:
+            st.markdown('<div class="badge-info">👆 Configura los parámetros y pulsa <b>Valorar</b>.</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="badge-info">👆 Configura los parámetros y pulsa <b>Valorar</b>.</div>', unsafe_allow_html=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  MÓDULO 11 — STRESS TESTING ★
+# ══════════════════════════════════════════════════════════════════════════════
+elif opcion == "⚠️  Módulo 11 · Stress Testing ★":
+    page_header("⚠️ Módulo 11 · Stress Testing",
+                "Escenarios extremos sobre el portafolio óptimo — análisis forward-looking")
+
+    with st.sidebar:
+        st.markdown("### ⚙️ Parámetros")
+        tickers_st = st.multiselect("Activos del portafolio", TICKER_LIST,
+                                    default=TICKER_LIST[:5], key="m11_tickers")
+        inversion_st = st.number_input("Inversión base (USD)", value=100000, step=5000, key="m11_inv")
+        confianza_st = st.select_slider("Confianza VaR base", [0.95, 0.99], value=0.99, key="m11_conf")
+        calcular = st.button("🔄 Calcular Stress", type="primary", use_container_width=True)
+
+    st.markdown(f'<div class="autoload-banner">⚡ Stress Testing · {len(tickers_st)} activos · Inversión ${inversion_st:,.0f} · VaR base al {confianza_st:.0%}</div>', unsafe_allow_html=True)
+
+    with st.expander("📖 Stress Testing vs Backtesting — diferencia clave", expanded=False):
+        st.markdown("""
+El **backtesting de Kupiec** (Mód.5) *valida* el VaR contra historia observada — mira hacia atrás.
+
+El **stress testing** va al revés: aplica *escenarios hipotéticos extremos* — algunos sin precedente histórico — para estimar la pérdida potencial bajo condiciones adversas.
+
+**Ambos son obligatorios bajo Basilea III** para entidades financieras.
+
+| | Backtesting (Kupiec) | Stress Testing |
+|---|---|---|
+| Orientación | Backward-looking | Forward-looking |
+| Base | Historia observada | Escenarios hipotéticos |
+| Objetivo | Validar modelo VaR | Estimar pérdida extrema |
+        """)
+
+    # ── Definición de escenarios ─────────────────────────────────────────────
+    section_title("📋", "Escenarios Obligatorios")
+    escenarios_def = pd.DataFrame({
+        "Escenario": ["1. Shock de tasa", "2. Caída del mercado",
+                      "3. Shock de volatilidad", "4. Combinado (opcional)"],
+        "Shock": ["Δr = +200pb / −200pb", "R_bench = −20% / −30%",
+                  "σ → σ × 2", "Caída −20% + σ×2 + Δr +200pb"],
+        "Componentes afectados": [
+            "Renta fija (Mód.9): vía duración + convexidad. CAPM: Rf actualizada.",
+            "Cada activo según su β: ΔR_i = β_i · shock_mkt",
+            "VaR paramétrico, Montecarlo, opciones (vía vega)",
+            "Escenario tormenta perfecta — pérdida agregada bajo múltiples shocks"
+        ]
+    })
+    st.dataframe(escenarios_def.set_index("Escenario"), use_container_width=True)
+
+    if calcular:
+        if not tickers_st:
+            st.warning("Selecciona al menos un activo.")
+        else:
+            with st.spinner("Ejecutando escenarios de stress..."):
+                st_data = api_post("/api/stress/calcular", {
+                    "tickers": tickers_st, "inversion": inversion_st,
+                    "confianza": confianza_st
+                })
+            if st_data:
+                st.session_state["m11_data"] = st_data
+
+    st_data = st.session_state.get("m11_data")
+
+    if st_data:
+        # ── VaR Base vs Estresado ────────────────────────────────────────────
+        section_title("📊", "VaR Base vs VaR Estresado (Paramétrico al 99%)")
+        var_base = st_data.get("var_base_pct", 0)
+        esc_results = st_data.get("escenarios", [])
+
+        sv1, sv2, sv3 = st.columns(3)
+        sv1.metric("VaR Base", f"{var_base:.2%}", delta_color="inverse")
+        sv2.metric("Pérdida Base (USD)", f"${abs(var_base) * inversion_st:,.0f}", delta_color="inverse")
+        peor = max(esc_results, key=lambda x: abs(x.get("perdida_pct", 0)), default={}) if esc_results else {}
+        sv3.metric("Peor Escenario", peor.get("nombre", "—"), f"{peor.get('perdida_pct', 0):.2%}", delta_color="inverse")
+
+        # ── Bar chart de pérdidas por escenario ─────────────────────────────
+        if esc_results:
+            nombres  = [e["nombre"] for e in esc_results]
+            perdidas = [abs(e.get("perdida_pct", 0)) * 100 for e in esc_results]
+            var_b_list = [abs(var_base) * 100] * len(nombres)
+
+            fig_bar = go.Figure()
+            fig_bar.add_trace(go.Bar(
+                x=nombres, y=perdidas, name="Pérdida Estresada (%)",
+                marker_color=[DANGER if p > abs(var_base)*100 else WARNING for p in perdidas],
+                text=[f"{p:.2f}%" for p in perdidas], textposition="outside"
+            ))
+            fig_bar.add_trace(go.Scatter(
+                x=nombres, y=var_b_list, name="VaR Base",
+                mode="lines", line=dict(color=CYAN, width=2, dash="dash")
+            ))
+            fig_bar.update_layout(
+                title="Pérdida % del Portafolio por Escenario de Stress",
+                xaxis_title="Escenario", yaxis_title="Pérdida (%)",
+                height=380, **PLOT_TPL)
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+            # ── Tabla resumen de pérdidas ────────────────────────────────────
+            section_title("📋", "Tabla Resumen de Pérdidas por Escenario")
+            tabla_st = pd.DataFrame([{
+                "Escenario": e["nombre"],
+                "Pérdida (%)": f"{e.get('perdida_pct', 0):.2%}",
+                "Pérdida (USD)": f"${abs(e.get('perdida_pct', 0)) * inversion_st:,.0f}",
+                "VaR Estresado (%)": f"{e.get('var_estresado_pct', 0):.2%}",
+                "Supera VaR base": "⚠️ Sí" if abs(e.get('perdida_pct', 0)) > abs(var_base) else "✅ No"
+            } for e in esc_results])
+            st.dataframe(tabla_st.set_index("Escenario"), use_container_width=True)
+
+            # ── Heatmap de sensibilidad por activo ───────────────────────────
+            if "heatmap_activos" in st_data:
+                section_title("🔥", "Heatmap de Sensibilidad — Activo vs Escenario (ΔPrecio %)")
+                hm_df = pd.DataFrame(st_data["heatmap_activos"])
+                if not hm_df.empty:
+                    fig_hm = px.imshow(hm_df, text_auto=".2f",
+                        color_continuous_scale="RdYlGn_r",
+                        labels=dict(color="ΔPrecio (%)"))
+                    fig_hm.update_layout(height=max(300, len(hm_df) * 40 + 100), **PLOT_TPL)
+                    st.plotly_chart(fig_hm, use_container_width=True)
+            else:
+                badge_html("ℹ️ Agrega heatmap_activos al response del endpoint /api/stress/calcular para el heatmap por activo.", "info")
+
+            # ── Reverse stress test ──────────────────────────────────────────
+            if "reverse_stress_shock" in st_data:
+                section_title("🔄", "Reverse Stress Test")
+                rss = st_data["reverse_stress_shock"]
+                badge_html(
+                    f"📌 Shock mínimo necesario para producir una pérdida del 20% del portafolio: "
+                    f"<b>{rss:.2%}</b> de caída del mercado.",
+                    "warning"
+                )
+            else:
+                with st.expander("🔄 Reverse Stress Test — estimación local"):
+                    st.markdown("""
+**Objetivo:** Encontrar el shock mínimo (caída de mercado) que lleva al portafolio a una pérdida del 20%.
+
+Usando β promedio ponderado del portafolio y la relación ΔR_portafolio ≈ β̄ · shock_mkt,
+el shock necesario para −20% es aproximadamente:
+
+    shock_necesario = −0.20 / β̄
+
+El backend puede calcular esto con precisión integrando los tres métodos VaR bajo cada nivel de shock.
+                    """)
+
+            # Badges finales
+            peor_pct = abs(peor.get("perdida_pct", 0))
+            if peor_pct > 0.20:
+                badge_html(
+                    f"🚨 El peor escenario genera una pérdida del {peor_pct:.2%} — superior al 20%. "
+                    f"Revisar exposición del portafolio y considerar coberturas.",
+                    "error"
+                )
+            elif peor_pct > 0.10:
+                badge_html(
+                    f"⚠️ El peor escenario genera una pérdida del {peor_pct:.2%}. "
+                    f"Portafolio moderadamente expuesto a shocks extremos.",
+                    "warning"
+                )
+            else:
+                badge_html(
+                    f"✅ El portafolio muestra resiliencia ante stress — pérdida máxima {peor_pct:.2%}.",
+                    "success"
+                )
+    else:
+        st.markdown('<div class="badge-info">👆 Selecciona los activos del portafolio y pulsa <b>Calcular Stress</b>.</div>', unsafe_allow_html=True)
