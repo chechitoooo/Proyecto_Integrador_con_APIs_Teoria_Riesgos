@@ -131,32 +131,138 @@ def calcular_capm(ticker, benchmark, periodo):
             "alpha_jensen_pct": round(alpha_diario * 252, 6), "clasificacion": clasificacion, "datos_regresion": datos_reg}
 
 def calcular_var(ticker, confianza, inversion, n_sims):
-    df = get_data(ticker, period="2y")
-    if df is None or df.empty: raise ValueError(f"Sin datos para {ticker}")
-    returns = df["Close"].pct_change().dropna()
-    mu, sigma = float(returns.mean()), float(returns.std())
-    var_param = float(norm.ppf(1 - confianza, mu, sigma))
-    var_hist = float(np.percentile(returns, (1 - confianza) * 100))
-    sim = np.random.normal(mu, sigma, n_sims)
-    var_mc = float(np.percentile(sim, (1 - confianza) * 100))
-    cvar = float(returns[returns <= var_hist].mean())
-    # FASE 2.2: Test de Kupiec
-    excedencias = int((returns < var_hist).sum())
-    T = len(returns)
-    p_hat = excedencias / T
-    p_esperada = 1 - confianza
-    if p_hat == 0 or p_hat == 1: kupiec_res = {"excedencias": excedencias, "p_valor": 1.0, "aprueba": True}
-    else:
-        LR_uc = -2 * (np.log((1-p_esperada)**(T-excedencias) * p_esperada**excedencias) - np.log((1-p_hat)**(T-excedencias) * p_hat**excedencias))
-        p_valor = float(1 - chi2.cdf(LR_uc, df=1))
-        kupiec_res = {"excedencias_obs": excedencias, "excedencias_esp": round(T * p_esperada, 1),
-                      "LR_uc": round(float(LR_uc), 4), "p_valor_kupiec": round(p_valor, 4), "aprueba_kupiec": bool(p_valor > 0.05)}
-    return {"ticker": ticker, "confianza": confianza, "inversion": inversion, "var_parametrico_diario_pct": round(var_param, 6),
-            "var_historico_diario_pct": round(var_hist, 6), "var_montecarlo_diario_pct": round(var_mc, 6), "cvar_diario_pct": round(cvar, 6),
-            "perdida_param_usd": round(abs(var_param * inversion), 2), "perdida_hist_usd": round(abs(var_hist * inversion), 2),
-            "perdida_mc_usd": round(abs(var_mc * inversion), 2), "perdida_cvar_usd": round(abs(cvar * inversion), 2),
-            "datos_rendimientos": [round(float(v), 6) for v in returns.tolist()], "kupiec": kupiec_res}
 
+    df = get_data(ticker, period="2y")
+
+    if df is None or df.empty:
+        raise ValueError(f"Sin datos para {ticker}")
+
+    returns = df["Close"].pct_change().dropna()
+
+    mu = float(returns.mean())
+    sigma = float(returns.std())
+
+    # VaR Paramétrico
+    var_param = float(norm.ppf(1 - confianza, mu, sigma))
+
+    # VaR Anualizado
+    var_anual = var_param * np.sqrt(252)
+
+    # VaR Histórico
+    var_hist = float(
+        np.percentile(
+            returns,
+            (1 - confianza) * 100
+        )
+    )
+
+    # Monte Carlo
+    sim = np.random.normal(mu, sigma, n_sims)
+
+    var_mc = float(
+        np.percentile(
+            sim,
+            (1 - confianza) * 100
+        )
+    )
+
+    # CVaR
+    cvar_series = returns[returns <= var_hist]
+
+    if len(cvar_series) > 0:
+        cvar = float(cvar_series.mean())
+    else:
+        cvar = float(var_hist)
+
+    # =====================================
+    # TEST DE KUPIEC
+    # =====================================
+
+    excedencias = int((returns < var_hist).sum())
+
+    T = len(returns)
+
+    p_esperada = 1 - confianza
+
+    if T == 0:
+
+        kupiec_res = {
+            "excedencias_obs": 0,
+            "excedencias_esp": 0,
+            "LR_uc": 0.0,
+            "p_valor_kupiec": 1.0,
+            "aprueba_kupiec": True
+        }
+
+    else:
+
+        p_hat = excedencias / T
+
+        # Evitar log(0)
+        if p_hat == 0:
+            p_hat = 0.000001
+
+        if p_hat == 1:
+            p_hat = 0.999999
+
+        LR_uc = -2 * (
+
+            np.log(
+                ((1 - p_esperada) ** (T - excedencias)) *
+                (p_esperada ** excedencias)
+            )
+
+            -
+
+            np.log(
+                ((1 - p_hat) ** (T - excedencias)) *
+                (p_hat ** excedencias)
+            )
+
+        )
+
+        p_valor = float(
+            1 - chi2.cdf(LR_uc, df=1)
+        )
+
+        kupiec_res = {
+            "excedencias_obs": excedencias,
+            "excedencias_esp": round(T * p_esperada, 1),
+            "LR_uc": round(float(LR_uc), 4),
+            "p_valor_kupiec": round(p_valor, 4),
+            "aprueba_kupiec": bool(p_valor > 0.05)
+        }
+
+    return {
+
+        "ticker": ticker,
+        "confianza": confianza,
+        "inversion": inversion,
+
+        "var_parametrico_diario_pct": round(var_param, 6),
+        "var_parametrico_anual_pct": round(var_anual, 6),
+
+        "var_historico_diario_pct": round(var_hist, 6),
+        "var_montecarlo_diario_pct": round(var_mc, 6),
+
+        "cvar_diario_pct": round(cvar, 6),
+
+        "perdida_param_usd": round(abs(var_param * inversion), 2),
+        "perdida_hist_usd": round(abs(var_hist * inversion), 2),
+        "perdida_mc_usd": round(abs(var_mc * inversion), 2),
+        "perdida_cvar_usd": round(abs(cvar * inversion), 2),
+
+        "datos_rendimientos": [
+            round(float(v), 6)
+            for v in returns.tolist()
+        ],
+
+        "excedencias_kupiec": kupiec_res["excedencias_obs"],
+        "excedencias_esperadas_kupiec": kupiec_res["excedencias_esp"],
+        "lr_uc_kupiec": kupiec_res["LR_uc"],
+        "p_valor_kupiec": kupiec_res["p_valor_kupiec"],
+        "aprueba_kupiec": kupiec_res["aprueba_kupiec"]
+    }
 def calcular_markowitz(tickers, num_portafolios, periodo):
     all_prices = {}
     for t in tickers:

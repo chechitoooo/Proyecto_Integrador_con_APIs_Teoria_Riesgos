@@ -11,10 +11,13 @@ import time
 from backend.database import engine, Base
 from backend.models import orm  # Registra modelos en metadata
 from backend.config import get_settings
+
+# 🔥 INCLUIMOS TAMBIÉN ML
 from backend.routers.endpoints import (
     router_utils, router_tecnico, router_rendimientos, router_garch,
     router_capm, router_var, router_markowitz, router_senales, router_macro,
-    router_renta_fija, router_opciones, router_stress
+    router_renta_fija, router_opciones, router_stress,
+    router_ml
 )
 
 settings = get_settings()
@@ -26,9 +29,19 @@ async def lifespan(app: FastAPI):
     print("✅ Base de datos inicializada y lista.")
     yield
 
-app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=lifespan)
+app = FastAPI(
+    title=settings.app_name,
+    version=settings.app_version,
+    lifespan=lifespan
+)
 
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
 
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
@@ -40,16 +53,34 @@ async def add_process_time_header(request: Request, call_next):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    return JSONResponse(status_code=500, content={"detail": f"Error interno: {str(exc)}"})
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Error interno: {str(exc)}"}
+    )
 
-# Registrar todos los routers
+# ─── REGISTRO DE ROUTERS ─────────────────────────────────────────────────────
 for router in [
-    router_utils, router_tecnico, router_rendimientos, router_garch,
-    router_capm, router_var, router_markowitz, router_senales, router_macro,
-    router_renta_fija, router_opciones, router_stress
+    router_utils,
+    router_tecnico,
+    router_rendimientos,
+    router_garch,
+    router_capm,
+    router_var,
+    router_markowitz,
+    router_senales,
+    router_macro,
+    router_renta_fija,
+    router_opciones,
+    router_stress,
+    router_ml   # 🔥 IMPORTANTE
 ]:
     app.include_router(router)
 
 @app.get("/", tags=["Root"])
 def root():
-    return {"app": settings.app_name, "version": settings.app_version, "docs": "/docs", "status": "operativo"}
+    return {
+        "app": settings.app_name,
+        "version": settings.app_version,
+        "docs": "/docs",
+        "status": "operativo"
+    }

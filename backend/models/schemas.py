@@ -1,6 +1,6 @@
 """
 backend/models/schemas.py
-Schemas Pydantic para validación de requests/responses (Fases 1-3).
+Schemas Pydantic para validación de requests/responses (Fases 1-3 + ML).
 """
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Literal, List, Dict
@@ -26,9 +26,11 @@ class DistribucionEnum(str, Enum):
 class TickerRequest(BaseModel):
     ticker: str
     periodo: PeriodoEnum = PeriodoEnum.two_years
+
     @field_validator("ticker")
     @classmethod
-    def upper(cls, v: str) -> str: return v.strip().upper()
+    def upper(cls, v: str) -> str:
+        return v.strip().upper()
 
 class TecnicoRequest(TickerRequest):
     sma_corto: int = 20
@@ -71,12 +73,12 @@ class MacroRequest(BaseModel):
     benchmark: str = "^GSPC"
     periodo: PeriodoEnum = PeriodoEnum.one_year
 
-# ─── REQUESTS FASE 2-3 (NUEVOS) ───────────────────────────────────────────────
+# ─── REQUESTS FASE 2-3 ────────────────────────────────────────────────────────
 class EwmaRequest(BaseModel):
     ticker: str
-    lambda_: float = Field(0.94, alias="lambda") # Alias para compatibilidad JSON
+    lambda_: float = Field(0.94, alias="lambda")
     periodo: str = "2y"
-    
+
     class Config:
         populate_by_name = True
 
@@ -96,6 +98,11 @@ class StressRequest(BaseModel):
     tickers: List[str]
     inversion: float = Field(100000, gt=0)
     confianza: float = Field(0.99, ge=0.9, le=0.999)
+
+# ─── 🔥 ML 4.3 REQUEST ───────────────────────────────────────────────────────
+class PredictRequest(BaseModel):
+    ticker: str
+
 
 # ─── RESPONSES BASE ───────────────────────────────────────────────────────────
 class IndicadoresResponse(BaseModel):
@@ -142,7 +149,7 @@ class CapmResponse(BaseModel):
     r_squared: float
     clasificacion: Literal["Agresivo", "Neutro", "Defensivo"]
     datos_regresion: List[Dict]
-    alpha_jensen_pct: float  # ← FASE 2.4
+    alpha_jensen_pct: float
 
 class VarResponse(BaseModel):
     ticker: str
@@ -158,7 +165,7 @@ class VarResponse(BaseModel):
     perdida_mc_usd: float
     perdida_cvar_usd: float
     datos_rendimientos: List[float]
-    kupiec: Dict  # ← FASE 2.2
+    kupiec: Dict
 
 class PortafolioOptimo(BaseModel):
     tipo: Literal["max_sharpe", "min_varianza"]
@@ -199,14 +206,14 @@ class MacroResponse(BaseModel):
     portafolio_acumulado: List[Dict]
     benchmark_acumulado: List[Dict]
 
-# ─── RESPONSES FASE 2-3 (NUEVOS) ──────────────────────────────────────────────
+# ─── RESPONSES FASE 2-3 ───────────────────────────────────────────────────────
 class EwmaResponse(BaseModel):
     ticker: str
-    lambda_: float = Field(alias="lambda") # ← CORREGIDO: lambda_
+    lambda_: float = Field(alias="lambda")
     volatilidad_ewma_anual_pct: float
     serie_vol: List[float]
     fechas: List[str]
-    
+
     class Config:
         populate_by_name = True
 
@@ -214,10 +221,10 @@ class CurvaResponse(BaseModel):
     beta0: float
     beta1: float
     beta2: float
-    lambda_: float = Field(alias="lambda") # ← CORREGIDO: lambda_
+    lambda_: float = Field(alias="lambda")
     curva: List[Dict]
     puntos: Optional[List[Dict]] = None
-    
+
     class Config:
         populate_by_name = True
 
@@ -255,3 +262,12 @@ class StressResponse(BaseModel):
     escenarios: List[Dict]
     reverse_stress_shock: float
     heatmap_activos: Dict
+
+
+# ─── 🔥 ML 4.3 RESPONSE ───────────────────────────────────────────────────────
+class PredictResponse(BaseModel):
+    ticker: str
+    prediccion: int
+    prob_sube: float
+    prob_baja: float
+    señal: str
