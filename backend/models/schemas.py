@@ -151,21 +151,33 @@ class CapmResponse(BaseModel):
     datos_regresion: List[Dict]
     alpha_jensen_pct: float
 
+from pydantic import BaseModel
+from typing import List
+
 class VarResponse(BaseModel):
     ticker: str
     confianza: float
     inversion: float
+
     var_parametrico_diario_pct: float
     var_parametrico_anual_pct: float
     var_historico_diario_pct: float
     var_montecarlo_diario_pct: float
     cvar_diario_pct: float
+
     perdida_param_usd: float
     perdida_hist_usd: float
     perdida_mc_usd: float
     perdida_cvar_usd: float
+
     datos_rendimientos: List[float]
-    kupiec: Dict
+
+    # Campos Kupiec APLANADOS (tal como los devuelve el servicio)
+    excedencias_kupiec: int
+    excedencias_esperadas_kupiec: float
+    lr_uc_kupiec: float
+    p_valor_kupiec: float
+    aprueba_kupiec: bool
 
 class PortafolioOptimo(BaseModel):
     tipo: Literal["max_sharpe", "min_varianza"]
