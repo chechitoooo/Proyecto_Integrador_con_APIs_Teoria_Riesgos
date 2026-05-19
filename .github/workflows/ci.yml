@@ -13,8 +13,14 @@ jobs:
         with:
           python-version: "3.11"
 
-      - run: pip install -r requirements.txt
+      - name: Upgrade pip
+        run: pip install --upgrade pip
 
-      - run: pip install pytest httpx
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
-      - run: pytest tests/ -v --tb=short
+      - name: Install test deps
+        run: pip install pytest httpx
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
