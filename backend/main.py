@@ -10,10 +10,9 @@ from fastapi.responses import JSONResponse
 import time
 
 from backend.database import engine, Base
-from backend.models import orm  # registra modelos en metadata
+from backend.models import orm
 from backend.config import get_settings
 
-# Routers
 from backend.routers.endpoints import (
     router_utils,
     router_tecnico,
@@ -33,9 +32,6 @@ from backend.routers.endpoints import (
 settings = get_settings()
 
 
-# ───────────────────────────────
-# LIFESPAN
-# ───────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
@@ -43,9 +39,6 @@ async def lifespan(app: FastAPI):
     yield
 
 
-# ───────────────────────────────
-# APP
-# ───────────────────────────────
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
@@ -53,9 +46,6 @@ app = FastAPI(
 )
 
 
-# ───────────────────────────────
-# CORS
-# ───────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -65,9 +55,6 @@ app.add_middleware(
 )
 
 
-# ───────────────────────────────
-# MIDDLEWARE
-# ───────────────────────────────
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
     start_time = time.time()
@@ -77,9 +64,6 @@ async def add_process_time_header(request: Request, call_next):
     return response
 
 
-# ───────────────────────────────
-# GLOBAL ERROR HANDLER
-# ───────────────────────────────
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
@@ -88,28 +72,22 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# ───────────────────────────────
-# ROUTERS (IMPORTANTE: PREFIX CORRECTO)
-# ───────────────────────────────
+# 🚨 IMPORTANTE: SIN PREFIX AQUÍ
 app.include_router(router_utils)
+app.include_router(router_tecnico)
+app.include_router(router_rendimientos)
+app.include_router(router_garch)
+app.include_router(router_capm)
+app.include_router(router_var)
+app.include_router(router_markowitz)
+app.include_router(router_senales)
+app.include_router(router_macro)
+app.include_router(router_renta_fija)
+app.include_router(router_opciones)
+app.include_router(router_stress)
+app.include_router(router_ml)
 
-app.include_router(router_tecnico, prefix="/api/tecnico")
-app.include_router(router_rendimientos, prefix="/api/rendimientos")
-app.include_router(router_garch, prefix="/api/garch")
-app.include_router(router_capm, prefix="/api/capm")
-app.include_router(router_var, prefix="/api/var")
-app.include_router(router_markowitz, prefix="/api/markowitz")
-app.include_router(router_senales, prefix="/api/senales")
-app.include_router(router_macro, prefix="/api/macro")
-app.include_router(router_renta_fija, prefix="/api/renta-fija")
-app.include_router(router_opciones, prefix="/api/opciones")
-app.include_router(router_stress, prefix="/api/stress")
-app.include_router(router_ml, prefix="/api/ml")
 
-
-# ───────────────────────────────
-# ROOT
-# ───────────────────────────────
 @app.get("/", tags=["Root"])
 def root():
     return {
@@ -117,4 +95,5 @@ def root():
         "version": settings.app_version,
         "docs": "/docs",
         "status": "operativo"
+    }
     }
