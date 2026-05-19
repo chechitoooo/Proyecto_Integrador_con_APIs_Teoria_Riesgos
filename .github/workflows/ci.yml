@@ -26,4 +26,4 @@ jobs:
         run: pip install pytest httpx
 
       - name: Run tests
-        run: pytest tests/ -v --tb=short
+  run: PYTHONPATH=. pytest tests/ -v --tb=short
