@@ -96,4 +96,3 @@ def root():
         "docs": "/docs",
         "status": "operativo"
     }
-    }
