@@ -13,73 +13,238 @@ from scipy.stats import norm
 import statsmodels.api as sm2
 
 st.set_page_config(
-    page_title="Dashboard Financiero · Teoría de Riesgo",
+    page_title="RiskLab · Dashboard Financiero",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ─── CSS ───────────────────────────────────────────────────────────────────────
+# ─── CSS PREMIUM ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
-html, body, [class*="css"] { font-family: 'Outfit', sans-serif !important; }
-.stApp { background: linear-gradient(135deg, #0F0C29 0%, #1a1a3e 50%, #0d0d2b 100%); background-attachment: fixed; }
-[data-testid="stSidebar"] { background: linear-gradient(180deg, #1a0533 0%, #0d1b4f 100%); border-right: 1px solid rgba(139,92,246,0.3); }
-[data-testid="stSidebar"] * { color: #E2D9F3 !important; }
-[data-testid="stSidebar"] .stButton>button { background: linear-gradient(135deg, #7C3AED, #4F46E5) !important; color: white !important; border: none !important; border-radius: 12px !important; font-weight: 700 !important; padding: 12px !important; box-shadow: 0 4px 15px rgba(124,58,237,0.4) !important; transition: all 0.3s ease !important; }
-[data-testid="stSidebar"] .stButton>button:hover { transform: translateY(-2px) !important; box-shadow: 0 8px 25px rgba(124,58,237,0.6) !important; }
-[data-testid="metric-container"] { background: linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03)); border: 1px solid rgba(139,92,246,0.35); border-radius: 16px; padding: 18px 22px; backdrop-filter: blur(10px); box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
-[data-testid="stMetricLabel"] { color: #A78BFA !important; font-size: 12px !important; font-weight: 600 !important; }
-[data-testid="stMetricValue"] { color: #F8FAFC !important; font-size: 28px !important; font-weight: 800 !important; }
-h1, h2, h3, h4, h5, h6 { color: #F1F5F9 !important; font-family: 'Outfit', sans-serif !important; font-weight: 800 !important; }
-p, li, span, label { color: #CBD5E1 !important; font-family: 'Outfit', sans-serif !important; }
-.page-header { background: linear-gradient(135deg, #7C3AED 0%, #4F46E5 50%, #0EA5E9 100%); padding: 28px 36px; border-radius: 20px; margin-bottom: 28px; box-shadow: 0 10px 40px rgba(124,58,237,0.4); }
-.page-header h2 { color: white !important; margin: 0; font-size: 26px !important; font-weight: 800 !important; }
-.page-header p { color: rgba(255,255,255,0.85) !important; margin: 6px 0 0; font-size: 14px !important; }
-.card { background: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border: 1px solid rgba(139,92,246,0.25); border-radius: 20px; padding: 24px; margin-bottom: 16px; backdrop-filter: blur(12px); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
-.badge-success { background: rgba(34,197,94,0.15); color: #4ADE80; border: 1px solid rgba(74,222,128,0.4); border-radius: 12px; padding: 12px 18px; font-weight: 700; border-left: 4px solid #22C55E; }
-.badge-error { background: rgba(239,68,68,0.15); color: #F87171; border: 1px solid rgba(248,113,113,0.4); border-radius: 12px; padding: 12px 18px; font-weight: 700; border-left: 4px solid #EF4444; }
-.badge-info { background: rgba(59,130,246,0.15); color: #60A5FA; border: 1px solid rgba(96,165,250,0.4); border-radius: 12px; padding: 12px 18px; font-weight: 700; border-left: 4px solid #3B82F6; }
-.badge-warning { background: rgba(245,158,11,0.15); color: #FCD34D; border: 1px solid rgba(252,211,77,0.4); border-radius: 12px; padding: 12px 18px; font-weight: 700; border-left: 4px solid #F59E0B; }
-.signal-buy { background: linear-gradient(135deg, rgba(34,197,94,0.2), rgba(16,185,129,0.1)); color: #4ADE80; border: 2px solid rgba(74,222,128,0.5); border-radius: 16px; padding: 22px; text-align: center; font-size: 24px; font-weight: 800; }
-.signal-sell { background: linear-gradient(135deg, rgba(239,68,68,0.2), rgba(220,38,38,0.1)); color: #F87171; border: 2px solid rgba(248,113,113,0.5); border-radius: 16px; padding: 22px; text-align: center; font-size: 24px; font-weight: 800; }
-.signal-neut { background: linear-gradient(135deg, rgba(59,130,246,0.2), rgba(37,99,235,0.1)); color: #60A5FA; border: 2px solid rgba(96,165,250,0.5); border-radius: 16px; padding: 22px; text-align: center; font-size: 24px; font-weight: 800; }
-.sig-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(139,92,246,0.3); border-radius: 16px; padding: 20px 14px; text-align: center; }
-.sig-label { font-size: 10px; font-weight: 700; color: #A78BFA !important; letter-spacing: 1.5px; margin-bottom: 8px; }
-.sig-estado { font-weight: 700; font-size: 16px; color: #F1F5F9 !important; margin-top: 8px; }
-.sig-desc { font-size: 12px; color: #94A3B8 !important; margin-top: 5px; }
-.status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; animation: pulse 2s infinite; }
-.status-dot.online { background: #22C55E; box-shadow: 0 0 8px #22C55E; }
-.status-dot.offline { background: #EF4444; box-shadow: 0 0 8px #EF4444; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap');
+
+/* ── BASE ── */
+html, body, [class*="css"] { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important; }
+.stApp { background: #090918; }
+section[data-testid="stSidebar"] { background: #0d0d24; border-right: 1px solid rgba(99,102,241,0.12); }
+section[data-testid="stSidebar"] .stMarkdown, section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] .stRadio label, section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] span { color: #c7d2fe !important; }
+
+/* ── SIDEBAR NAV ── */
+section[data-testid="stSidebar"] .stRadio [role="radiogroup"] label {
+    background: transparent !important; border: 1px solid transparent !important;
+    border-radius: 10px !important; padding: 8px 12px !important;
+    margin-bottom: 2px !important; font-size: 13px !important;
+    font-weight: 500 !important; color: #a5b4fc !important;
+    transition: all 0.2s !important; cursor: pointer !important;
+}
+section[data-testid="stSidebar"] .stRadio [role="radiogroup"] label:hover {
+    background: rgba(99,102,241,0.12) !important; color: #e0e7ff !important;
+}
+section[data-testid="stSidebar"] .stRadio [data-selected="true"] label {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+    color: white !important; font-weight: 600 !important;
+    box-shadow: 0 4px 14px rgba(99,102,241,0.35) !important;
+}
+
+/* ── BUTTONS ── */
+.stButton > button, .stFormSubmitButton > button {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+    color: white !important; border: none !important; border-radius: 12px !important;
+    font-weight: 600 !important; font-size: 14px !important; padding: 10px 20px !important;
+    box-shadow: 0 4px 16px rgba(99,102,241,0.3) !important;
+    transition: all 0.25s ease !important; letter-spacing: -0.01em !important;
+}
+.stButton > button:hover, .stFormSubmitButton > button:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 28px rgba(99,102,241,0.45) !important;
+}
+
+/* ── METRICS ── */
+[data-testid="metric-container"] {
+    background: linear-gradient(145deg, rgba(99,102,241,0.06), rgba(139,92,246,0.03));
+    border: 1px solid rgba(99,102,241,0.15); border-radius: 14px;
+    padding: 16px 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+    transition: all 0.25s ease;
+}
+[data-testid="metric-container"]:hover {
+    border-color: rgba(99,102,241,0.35);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(99,102,241,0.15);
+}
+[data-testid="stMetricLabel"] { color: #a5b4fc !important; font-size: 11px !important;
+    font-weight: 600 !important; letter-spacing: 0.04em !important; text-transform: uppercase !important; }
+[data-testid="stMetricValue"] { color: #f1f5f9 !important; font-size: 26px !important;
+    font-weight: 700 !important; letter-spacing: -0.02em !important; }
+[data-testid="stMetricDelta"] { font-size: 13px !important; font-weight: 600 !important; }
+
+/* ── TYPOGRAPHY ── */
+h1 { font-size: 2rem !important; font-weight: 700 !important; letter-spacing: -0.03em !important; }
+h2 { font-size: 1.5rem !important; font-weight: 700 !important; letter-spacing: -0.02em !important; }
+h3 { font-size: 1.15rem !important; font-weight: 600 !important; letter-spacing: -0.01em !important; }
+h1, h2, h3, h4, h5, h6 { color: #f1f5f9 !important; font-family: 'Inter', sans-serif !important; }
+p, li, span, label, div { color: #cbd5e1 !important; font-family: 'Inter', sans-serif !important; }
+
+/* ── PAGE HEADER ── */
+.page-header {
+    background: linear-gradient(135deg, #4338ca 0%, #6366f1 40%, #06b6d4 100%);
+    padding: 32px 40px; border-radius: 18px; margin-bottom: 28px;
+    box-shadow: 0 8px 40px rgba(67,56,202,0.35); position: relative; overflow: hidden;
+}
+.page-header::after {
+    content: ''; position: absolute; top: -60px; right: -40px;
+    width: 200px; height: 200px; background: rgba(255,255,255,0.04); border-radius: 50%;
+}
+.page-header h2 { color: white !important; margin: 0; font-size: 1.6rem !important; font-weight: 700 !important; }
+.page-header p { color: rgba(255,255,255,0.8) !important; margin: 8px 0 0; font-size: 14px !important; font-weight: 400 !important; }
+
+/* ── CARDS ── */
+.card {
+    background: linear-gradient(145deg, rgba(99,102,241,0.04), rgba(15,23,42,0.6));
+    border: 1px solid rgba(99,102,241,0.12); border-radius: 16px;
+    padding: 22px; margin-bottom: 14px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.15); transition: all 0.3s ease;
+}
+.card:hover { border-color: rgba(99,102,241,0.3); transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.25); }
+
+/* ── BADGES ── */
+.badge-success { display: block; background: rgba(34,197,94,0.1); color: #4ade80;
+    border: 1px solid rgba(74,222,128,0.3); border-radius: 10px; padding: 10px 16px;
+    font-weight: 600; font-size: 13px; border-left: 4px solid #22c55e; }
+.badge-error   { display: block; background: rgba(239,68,68,0.1); color: #f87171;
+    border: 1px solid rgba(248,113,113,0.3); border-radius: 10px; padding: 10px 16px;
+    font-weight: 600; font-size: 13px; border-left: 4px solid #ef4444; }
+.badge-info    { display: block; background: rgba(59,130,246,0.1); color: #60a5fa;
+    border: 1px solid rgba(96,165,250,0.3); border-radius: 10px; padding: 10px 16px;
+    font-weight: 600; font-size: 13px; border-left: 4px solid #3b82f6; }
+.badge-warning { display: block; background: rgba(245,158,11,0.1); color: #fcd34d;
+    border: 1px solid rgba(252,211,77,0.3); border-radius: 10px; padding: 10px 16px;
+    font-weight: 600; font-size: 13px; border-left: 4px solid #f59e0b; }
+
+/* ── SIGNALS ── */
+.signal-buy  { background: linear-gradient(145deg, rgba(34,197,94,0.15), rgba(16,185,129,0.06));
+    color: #4ade80; border: 2px solid rgba(74,222,128,0.35); border-radius: 16px;
+    padding: 22px; text-align: center; font-size: 24px; font-weight: 700;
+    box-shadow: 0 4px 20px rgba(34,197,94,0.1); }
+.signal-sell { background: linear-gradient(145deg, rgba(239,68,68,0.15), rgba(220,38,38,0.06));
+    color: #f87171; border: 2px solid rgba(248,113,113,0.35); border-radius: 16px;
+    padding: 22px; text-align: center; font-size: 24px; font-weight: 700;
+    box-shadow: 0 4px 20px rgba(239,68,68,0.1); }
+.signal-neut { background: linear-gradient(145deg, rgba(59,130,246,0.15), rgba(37,99,235,0.06));
+    color: #60a5fa; border: 2px solid rgba(96,165,250,0.35); border-radius: 16px;
+    padding: 22px; text-align: center; font-size: 24px; font-weight: 700;
+    box-shadow: 0 4px 20px rgba(59,130,246,0.1); }
+.sig-card   { background: rgba(99,102,241,0.03); border: 1px solid rgba(99,102,241,0.12);
+    border-radius: 14px; padding: 18px 12px; text-align: center;
+    transition: all 0.25s ease; }
+.sig-card:hover { border-color: rgba(99,102,241,0.35); transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(99,102,241,0.12); }
+.sig-label  { font-size: 10px; font-weight: 700; color: #a5b4fc !important;
+    letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
+.sig-estado { font-weight: 700; font-size: 15px; color: #f1f5f9 !important; margin-top: 8px; }
+.sig-desc   { font-size: 11px; color: #94a3b8 !important; margin-top: 5px; }
+
+/* ── MODULE CARDS (Portada) ── */
+.mod-card {
+    background: linear-gradient(145deg, rgba(99,102,241,0.05), rgba(15,23,42,0.5));
+    border: 1px solid rgba(99,102,241,0.1); border-radius: 14px;
+    padding: 20px 14px; text-align: center; height: 140px;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    transition: all 0.3s cubic-bezier(0.4,0,0.2,1); cursor: default; margin-bottom: 8px;
+}
+.mod-card:hover {
+    background: linear-gradient(145deg, rgba(99,102,241,0.15), rgba(139,92,246,0.08));
+    border-color: rgba(99,102,241,0.4); transform: translateY(-4px) scale(1.02);
+    box-shadow: 0 10px 30px rgba(99,102,241,0.2);
+}
+.mod-icon { font-size: 28px; margin-bottom: 6px; }
+.mod-num  { font-size: 9px; font-weight: 700; color: #a5b4fc !important;
+    letter-spacing: 0.12em; text-transform: uppercase; }
+.mod-name { font-size: 14px; font-weight: 700; color: #f1f5f9 !important; margin: 4px 0; }
+.mod-desc { font-size: 10px; color: #94a3b8 !important; }
+
+/* ── STATUS ── */
+.status-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    margin-right: 8px; animation: pulse 2s infinite; }
+.status-dot.online  { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+.status-dot.offline { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-.autoload-banner { background: linear-gradient(90deg, rgba(124,58,237,0.15), rgba(14,165,233,0.1)); border: 1px solid rgba(139,92,246,0.4); border-radius: 12px; padding: 14px 20px; margin-bottom: 20px; font-size: 13px; color: #C4B5FD !important; }
-.ticker-chip { background: rgba(124,58,237,0.15); border: 1px solid rgba(139,92,246,0.4); border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 700; color: #C4B5FD !important; display: inline-block; margin: 2px; }
-.stTabs [data-baseweb="tab-list"] { background: rgba(255,255,255,0.04); border-radius: 12px; padding: 4px; border: 1px solid rgba(139,92,246,0.2); }
-.stTabs [data-baseweb="tab"] { border-radius: 10px; color: #A78BFA !important; font-weight: 600 !important; }
-.stTabs [aria-selected="true"] { background: linear-gradient(135deg, #7C3AED, #4F46E5) !important; color: white !important; }
-hr { border-color: rgba(139,92,246,0.3) !important; }
+
+/* ── BANNER ── */
+.autoload-banner {
+    background: linear-gradient(90deg, rgba(99,102,241,0.1), rgba(6,182,212,0.06));
+    border: 1px solid rgba(99,102,241,0.2); border-radius: 10px;
+    padding: 12px 18px; margin-bottom: 18px; font-size: 13px; color: #c7d2fe !important;
+    font-weight: 500;
+}
+
+/* ── TICKER CHIPS ── */
+.ticker-chip { background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.25);
+    border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 600;
+    color: #c7d2fe !important; display: inline-block; margin: 3px; }
+
+/* ── TABS ── */
+.stTabs [data-baseweb="tab-list"] { background: rgba(99,102,241,0.04); border-radius: 10px;
+    padding: 4px; border: 1px solid rgba(99,102,241,0.12); gap: 2px; }
+.stTabs [data-baseweb="tab"] { border-radius: 8px; color: #a5b4fc !important;
+    font-weight: 500 !important; font-size: 13px !important; padding: 6px 14px !important; }
+.stTabs [aria-selected="true"] { background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+    color: white !important; font-weight: 600 !important; }
+
+/* ── DIVIDERS ── */
+hr { border-color: rgba(99,102,241,0.12) !important; }
+
+/* ── SPINNER ── */
+.stSpinner > div { border-top-color: #6366f1 !important; }
+
+/* ── SIDEBAR RADIO / SELECT ── */
+section[data-testid="stSidebar"] .stSelectbox > div > div,
+section[data-testid="stSidebar"] .stMultiSelect > div > div {
+    background: rgba(99,102,241,0.06) !important; border: 1px solid rgba(99,102,241,0.2) !important;
+    border-radius: 10px !important; color: #e0e7ff !important;
+}
+section[data-testid="stSidebar"] .stSlider > div > div > div { background: #6366f1 !important; }
+
+/* ── INFOR/WARNING/ERROR BOXES ── */
+.stAlert { border-radius: 12px !important; border-left: 4px solid !important;
+    background: rgba(99,102,241,0.04) !important; border-color: rgba(99,102,241,0.15) !important; }
+
+/* ── DATA FRAMES ── */
+div[data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden;
+    border: 1px solid rgba(99,102,241,0.12) !important; }
+div[data-testid="stDataFrame"] th { background: rgba(99,102,241,0.12) !important;
+    color: #c7d2fe !important; font-weight: 600 !important; font-size: 12px !important; }
+div[data-testid="stDataFrame"] td { font-size: 13px !important; }
+
+/* ── EXPANDER ── */
+details { background: rgba(99,102,241,0.03) !important; border: 1px solid rgba(99,102,241,0.12) !important;
+    border-radius: 12px !important; }
+details summary { color: #c7d2fe !important; font-weight: 600 !important; }
 </style>
 """, unsafe_allow_html=True)
 
 # ─── CONSTANTS ─────────────────────────────────────────────────────────────────
-PRIMARY = "#7C3AED"
-ACCENT = "#4F46E5"
-CYAN = "#0EA5E9"
-SUCCESS = "#22C55E"
-DANGER = "#EF4444"
-WARNING = "#F59E0B"
-INFO = "#3B82F6"
-MUTED = "#64748B"
-GOLD = "#F59E0B"
+PRIMARY = "#6366f1"
+ACCENT = "#8b5cf6"
+CYAN   = "#06b6d4"
+SUCCESS = "#22c55e"
+DANGER  = "#ef4444"
+WARNING = "#f59e0b"
+INFO    = "#3b82f6"
+MUTED   = "#64748b"
+GOLD    = "#f59e0b"
 
 PLOT_TPL = dict(
     template="plotly_dark",
-    paper_bgcolor="rgba(10,10,30,0)",
-    plot_bgcolor="rgba(255,255,255,0.03)",
-    font=dict(family="sans-serif", color="#CBD5E1", size=12),
-    xaxis=dict(gridcolor="rgba(100,100,255,0.1)"),
-    yaxis=dict(gridcolor="rgba(100,100,255,0.1)"),
+    paper_bgcolor="rgba(9,9,24,0)",
+    plot_bgcolor="rgba(99,102,241,0.03)",
+    font=dict(family="Inter, sans-serif", color="#cbd5e1", size=12),
+    margin=dict(t=45, b=25, l=10, r=10),
+    xaxis=dict(gridcolor="rgba(99,102,241,0.08)", linecolor="rgba(99,102,241,0.15)"),
+    yaxis=dict(gridcolor="rgba(99,102,241,0.08)", linecolor="rgba(99,102,241,0.15)"),
 )
 
 # ─── HELPERS ───────────────────────────────────────────────────────────────────
@@ -103,7 +268,7 @@ def fmt_pval(p):
 
 def section_title(icon, title):
     st.markdown(
-        f'<h3 style="color:#C4B5FD;font-size:18px;font-weight:700;margin:24px 0 12px;">'
+        f'<h3 style="color:#c7d2fe;font-size:18px;font-weight:700;margin:24px 0 12px;">'
         f'{icon} {title}</h3>',
         unsafe_allow_html=True
     )
@@ -198,7 +363,7 @@ with st.sidebar:
     <div style="text-align:center;padding:20px 10px 10px;">
         <div style="font-size:36px;">📊</div>
         <h1 style="font-size:20px;font-weight:900;color:white;margin:0;">Dashboard Financiero</h1>
-        <p style="font-size:11px;color:#A78BFA;margin:4px 0 0;">Teoria de Riesgo · 2026</p>
+        <p style="font-size:11px;color:#a5b4fc;margin:4px 0 0;">Teoria de Riesgo · 2026</p>
     </div>
     <hr>
     """, unsafe_allow_html=True)
@@ -235,9 +400,9 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════════════════════════
 if opcion == "🏠 Home":
     st.markdown("""
-    <div style="background:linear-gradient(135deg,#7C3AED 0%,#4F46E5 40%,#0EA5E9 100%);
+    <div style="background:linear-gradient(135deg,#4338ca 0%,#6366f1 40%,#06b6d4 100%);
                 border-radius:24px;padding:48px 44px;margin-bottom:32px;
-                box-shadow:0 20px 60px rgba(124,58,237,0.45);position:relative;overflow:hidden;">
+                box-shadow:0 20px 60px rgba(99,102,241,0.45);position:relative;overflow:hidden;">
         <div style="position:absolute;top:-60px;right:-40px;width:260px;height:260px;
                     background:rgba(255,255,255,0.04);border-radius:50%;"></div>
         <h1 style="color:white;margin:0;font-size:38px;font-weight:900;">
@@ -253,34 +418,34 @@ if opcion == "🏠 Home":
     with c1:
         st.markdown("""
         <div class="card">
-            <h3 style="color:#C4B5FD;">Integrantes</h3>
+            <h3 style="color:#c7d2fe;">Integrantes</h3>
             <p>Sergio David Huertas Ramirez</p>
             <p>Sergio Andres Prieto Orjuela</p>
             <hr style="border-color:rgba(139,92,246,0.3);">
-            <p style="font-size:13px;color:#94A3B8;">Materia: <b style="color:#C4B5FD;">Teoria de Riesgo</b></p>
-            <p style="font-size:13px;color:#94A3B8;">Profesor: <b style="color:#C4B5FD;">Javier Sierra</b></p>
+            <p style="font-size:13px;color:#94A3B8;">Materia: <b style="color:#c7d2fe;">Teoria de Riesgo</b></p>
+            <p style="font-size:13px;color:#94A3B8;">Profesor: <b style="color:#c7d2fe;">Javier Sierra</b></p>
         </div>
         """, unsafe_allow_html=True)
     with c2:
         st.markdown("""
         <div class="card">
-            <h3 style="color:#C4B5FD;">Arquitectura</h3>
-            <p><span style="background:rgba(124,58,237,0.25);border-radius:6px;padding:3px 8px;color:#C4B5FD;font-weight:700;">Frontend</span> Streamlit</p>
+            <h3 style="color:#c7d2fe;">Arquitectura</h3>
+            <p><span style="background:rgba(99,102,241,0.25);border-radius:6px;padding:3px 8px;color:#c7d2fe;font-weight:700;">Frontend</span> Streamlit</p>
             <p><span style="background:rgba(14,165,233,0.2);border-radius:6px;padding:3px 8px;color:#7DD3FC;font-weight:700;">Backend</span> FastAPI REST</p>
             <p><span style="background:rgba(34,197,94,0.2);border-radius:6px;padding:3px 8px;color:#86EFAC;font-weight:700;">HTTP</span> requests</p>
             <p><span style="background:rgba(245,158,11,0.2);border-radius:6px;padding:3px 8px;color:#FCD34D;font-weight:700;">Docs API</span> /docs</p>
         </div>
         """, unsafe_allow_html=True)
     with c3:
-        st.markdown('<div class="card"><h3 style="color:#C4B5FD;">Estado del Sistema</h3>', unsafe_allow_html=True)
+        st.markdown('<div class="card"><h3 style="color:#c7d2fe;">Estado del Sistema</h3>', unsafe_allow_html=True)
         if health:
             badge_html("API Operativa — Backend OK", "success")
         else:
             badge_html("API Desconectada", "error")
         st.markdown(f"""
         <p style="margin-top:14px;font-size:12px;color:#64748B;">
-            Activos disponibles: <b style="color:#C4B5FD;">{len(TICKERS)}</b><br>
-            Modulos activos: <b style="color:#C4B5FD;">11</b>
+            Activos disponibles: <b style="color:#c7d2fe;">{len(TICKERS)}</b><br>
+            Modulos activos: <b style="color:#c7d2fe;">11</b>
         </p>
         </div>
         """, unsafe_allow_html=True)
@@ -307,7 +472,7 @@ if opcion == "🏠 Home":
                         border:1px solid rgba(139,92,246,0.3);border-radius:18px;padding:22px 16px;
                         text-align:center;margin-bottom:12px;">
                 <div style="font-size:32px;">{icon}</div>
-                <div style="font-size:10px;font-weight:700;color:#A78BFA;">Modulo {num}</div>
+                <div style="font-size:10px;font-weight:700;color:#a5b4fc;">Modulo {num}</div>
                 <div style="font-size:15px;font-weight:700;color:#F1F5F9;">{name}</div>
                 <div style="font-size:11px;color:#94A3B8;">{desc}</div>
             </div>
@@ -579,7 +744,7 @@ elif opcion == "🌊 Modulo 3 - GARCH":
                 fig_f.add_trace(go.Scatter(x=dias, y=vol_fc, mode="lines+markers",
                     name="Vol. Pronosticada (%)", line=dict(color=PRIMARY, width=2.5),
                     marker=dict(size=8, color=CYAN), fill="tozeroy",
-                    fillcolor="rgba(124,58,237,0.1)"))
+                    fillcolor="rgba(99,102,241,0.1)"))
                 fig_f.update_layout(xaxis_title="Dias hacia adelante", yaxis_title="Volatilidad (%)",
                     height=360, **PLOT_TPL)
                 st.plotly_chart(fig_f, use_container_width=True)
@@ -948,7 +1113,7 @@ elif opcion == "🌍 Modulo 8 - Macro":
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=port["fecha"], y=port["valor"],
             name="Mi Portafolio", line=dict(color=PRIMARY, width=3),
-            fill="tozeroy", fillcolor="rgba(124,58,237,0.08)"))
+            fill="tozeroy", fillcolor="rgba(99,102,241,0.08)"))
         fig.add_trace(go.Scatter(x=bench["fecha"], y=bench["valor"],
             name="Benchmark (S&P 500)", line=dict(color=MUTED, width=2, dash="dash")))
         fig.add_hline(y=100, line_dash="dot", line_color=MUTED, opacity=0.4)
