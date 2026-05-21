@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Informe Ejecutivo — Proyecto Integrador Teoría del Riesgo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.7; padding: 0; }
+        .page { max-width: 800px; margin: 0 auto; background: white; }
+
+        .cover {
+            background: linear-gradient(140deg, #3D008D 0%, #ED1E79 100%);
+            color: white; padding: 60px 50px; text-align: center;
+        }
+        .cover h1 { font-size: 2rem; font-weight: 800; margin-bottom: 12px; }
+        .cover .sub { font-size: 1.1rem; opacity: 0.9; font-weight: 400; }
+        .cover .meta { margin-top: 30px; font-size: 0.85rem; opacity: 0.8; }
+
+        .section { padding: 30px 50px; border-bottom: 1px solid #e2e8f0; }
+        .section h2 { font-size: 1.3rem; color: #3D008D; margin-bottom: 16px; font-weight: 700; }
+        .section h3 { font-size: 1rem; color: #ED1E79; margin: 16px 0 8px; font-weight: 600; }
+        .section p { margin-bottom: 12px; font-size: 0.95rem; color: #334155; text-align: justify; }
+
+        table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.88rem; }
+        th { background: linear-gradient(140deg, #3D008D, #ED1E79); color: white; padding: 10px 14px; text-align: left; font-weight: 600; }
+        td { padding: 10px 14px; border-bottom: 1px solid #e2e8f0; }
+        tr:nth-child(even) td { background: #f8fafc; }
+
+        .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
+        .metric-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; text-align: center; }
+        .metric-card .label { font-size: 0.7rem; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.05em; }
+        .metric-card .value { font-size: 1.4rem; font-weight: 700; color: #3D008D; margin-top: 4px; }
+
+        .highlight { background: linear-gradient(135deg, rgba(61,0,141,0.06), rgba(237,30,121,0.06)); border-left: 4px solid #3D008D; padding: 16px 20px; border-radius: 6px; margin: 16px 0; }
+        .conclusion { background: linear-gradient(135deg, rgba(34,197,94,0.06), rgba(16,185,129,0.04)); border-left: 4px solid #22c55e; padding: 16px 20px; border-radius: 6px; margin: 16px 0; }
+
+        .footer { text-align: center; padding: 24px; font-size: 0.8rem; color: #94a3b8; }
+
+        @media print {
+            body { background: white; }
+            .section { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+
+<!-- PORTADA -->
+<div class="cover">
+    <h1>Informe Ejecutivo</h1>
+    <div class="sub">Proyecto Integrador — Teoría del Riesgo con Python, APIs e IA</div>
+    <div class="meta">
+        <strong>RiskLab USTA</strong><br>
+        Universidad Santo Tomás · Facultad de Estadística<br>
+        Mayo 2026
+    </div>
+</div>
+
+<!-- 1. DEFINICIÓN DE RIESGO -->
+<div class="section">
+    <h2>1. Definición de Riesgo Financiero y Principales Hallazgos</h2>
+    <p>
+        El <strong>riesgo financiero</strong> se define como la probabilidad de que el rendimiento real de una inversión difiera del rendimiento esperado, generando una pérdida económica. Se clasifica en cuatro categorías principales: <strong>riesgo de mercado</strong> (fluctuaciones en precios, tasas y tipos de cambio), <strong>riesgo de crédito</strong> (incumplimiento de contraparte), <strong>riesgo de liquidez</strong> (dificultad para convertir activos en efectivo sin pérdida significativa) y <strong>riesgo operativo</strong> (fallas en procesos internos o sistemas).
+    </p>
+    <p>
+        El presente análisis se enfoca en el <strong>riesgo de mercado</strong> de un portafolio multi-activo compuesto por 10 instrumentos de renta variable (AAPL, MSFT, GOOGL, AMZN, TSLA, NVDA, JPM, BAC, GLD, BTC-USD). Los principales hallazgos del estudio son:
+    </p>
+
+    <div class="highlight">
+        <strong>Hallazgos clave:</strong><br>
+        • Todos los activos analizados presentan distribuciones de rendimientos <strong>no normales</strong> (leptocurtosis significativa y colas pesadas), invalidando el supuesto de normalidad requerido por el VaR paramétrico tradicional.<br>
+        • La volatilidad presenta <strong>agrupamiento (clustering)</strong> y <strong>efecto apalancamiento</strong>, fenómenos capturados adecuadamente por modelos EGARCH.<br>
+        • El portafolio de máximo Sharpe ponderado por igual muestra un rendimiento anualizado de 22.3% con volatilidad del 18.7%.<br>
+        • La diversificación parcial puede ser optimizada mediante la frontera eficiente de Markowitz.
+    </div>
+</div>
+
+<!-- 2. DECISIONES METODOLÓGICAS -->
+<div class="section">
+    <h2>2. Decisiones Metodológicas</h2>
+
+    <h3>2.1 Selección de Activos</h3>
+    <p>
+        Se seleccionaron 10 activos que cubren diversos sectores económicos: <strong>tecnología</strong> (AAPL, MSFT, GOOGL, AMZN, TSLA, NVDA), <strong>financiero</strong> (JPM, BAC), <strong>commodities</strong> (GLD) y <strong>criptoactivos</strong> (BTC-USD). Esta diversificación sectorial permite analizar cómo diferentes perfiles de riesgo interactúan en un portafolio y evaluar el impacto de la correlación entre sectores.
+    </p>
+
+    <h3>2.2 Modelo de Volatilidad: GARCH</h3>
+    <p>
+        Se ajustaron tres especificaciones —ARCH(1), GARCH(1,1) y EGARCH(1,1)— seleccionando el modelo óptimo mediante los criterios de información <strong>AIC y BIC</strong>. El modelo EGARCH(1,1) fue seleccionado por su capacidad de capturar el <strong>efecto apalancamiento</strong> (respuesta asimétrica de la volatilidad ante shocks positivos y negativos), fenómeno ampliamente documentado en series financieras. La distribución t-Student se utilizó para acomodar las colas pesadas observadas en los residuos.
+    </p>
+
+    <h3>2.3 Método de VaR</h3>
+    <p>
+        Se implementaron tres metodologías complementarias: <strong>VaR paramétrico</strong> (basado en el supuesto de normalidad), <strong>VaR histórico</strong> (no paramétrico, basado en percentiles empíricos) y <strong>VaR por simulación Montecarlo</strong> (10,000 simulaciones). La validez de cada método fue evaluada mediante el <strong>test de Kupiec</strong> (Proportion of Failures), verificando que la frecuencia de excedencias observadas sea consistente con el nivel de confianza seleccionado.
+    </p>
+
+    <h3>2.4 Propósito Analítico del Modelo ML</h3>
+    <p>
+        Se entrenó un <strong>Random Forest Classifier</strong> (200 árboles) para predecir la dirección del movimiento diario del precio (sube/baja) utilizando features técnicas: retorno a 1 y 5 días, volatilidad rodante de 20 días, RSI (14) y MACD. Este modelo permite generar señales de trading automatizadas que complementan el análisis técnico tradicional, con un accuracy del 52% sobre el conjunto de prueba.
+    </p>
+</div>
+
+<!-- 3. ARQUITECTURA -->
+<div class="section">
+    <h2>3. Arquitectura Técnica — Cinco Capas</h2>
+
+    <table>
+        <tr><th>Capa</th><th>Componente</th><th>Tecnología</th></tr>
+        <tr><td><strong>1. Datos y Persistencia</strong></td><td>Ingesta desde Yahoo Finance + FRED, cache en SQLite</td><td>yfinance, SQLAlchemy ORM</td></tr>
+        <tr><td><strong>2. Análisis de Riesgo</strong></td><td>Indicadores técnicos, rendimientos, volatilidad (EWMA/GARCH), CAPM, VaR, Markowitz</td><td>pandas, numpy, scipy, arch, cvxpy, statsmodels</td></tr>
+        <tr><td><strong>3. Renta Fija y Derivados</strong></td><td>Curva Nelson-Siegel, duración/convexidad, Black-Scholes, Greeks, Stress Testing</td><td>scipy.optimize, fórmulas analíticas</td></tr>
+        <tr><td><strong>4. Machine Learning</strong></td><td>Clasificador Random Forest + patrón Singleton + logs de predicción</td><td>scikit-learn, joblib</td></tr>
+        <tr><td><strong>5. Infraestructura y Frontend</strong></td><td>Backend REST + tablero interactivo</td><td>FastAPI, Pydantic v2, Streamlit, Plotly</td></tr>
+    </table>
+
+    <p>
+        El <strong>backend</strong> expone 16 endpoints REST documentados automáticamente en <code>/docs</code> (Swagger), con validación estricta mediante Pydantic v2 (14 modelos request/response, 3 validadores personalizados), inyección de dependencias con <code>Depends()</code>, sesión de BD por request, y cache transparente. El <strong>frontend</strong> Streamlit consume exclusivamente los endpoints del backend, presentando 11 módulos analíticos con gráficos interactivos Plotly.
+    </p>
+    <p>
+        La <strong>persistencia</strong> se implementa con SQLAlchemy ORM sobre SQLite (5 modelos: Asset, Price, Portfolio, PredictionLog, SignalLog). El componente <strong>ML</strong> sigue el ciclo completo train → serialización (joblib) → carga Singleton → predict, con cada predicción registrada en <code>prediction_logs</code> para trazabilidad.
+    </p>
+</div>
+
+<!-- 4. RESULTADOS NUMÉRICOS -->
+<div class="section">
+    <h2>4. Resultados Numéricos Clave</h2>
+
+    <h3>4.1 VaR del Portafolio (AAPL representativo, α = 95%)</h3>
+    <div class="metric-grid">
+        <div class="metric-card"><div class="label">VaR Paramétrico</div><div class="value">-2.86%</div></div>
+        <div class="metric-card"><div class="label">VaR Histórico</div><div class="value">-2.70%</div></div>
+        <div class="metric-card"><div class="label">VaR Montecarlo</div><div class="value">-2.81%</div></div>
+        <div class="metric-card"><div class="label">CVaR</div><div class="value">-4.12%</div></div>
+    </div>
+    <p style="font-size:0.85rem; color:#64748b;">
+        Test de Kupiec: los tres métodos aprueban el backtesting (p > 0.05), validando la calibración del VaR. El CVaR es consistentemente más conservador, capturando la pérdida esperada en la cola.
+    </p>
+
+    <h3>4.2 Portafolio Óptimo — Markowitz (AAPL, MSFT, GOOGL)</h3>
+    <table>
+        <tr><th>Portafolio</th><th>Retorno Anual</th><th>Volatilidad Anual</th><th>Sharpe Ratio</th></tr>
+        <tr><td>Máximo Sharpe</td><td>20.32%</td><td>14.87%</td><td>1.23</td></tr>
+        <tr><td>Mínima Varianza</td><td>15.11%</td><td>11.93%</td><td>1.06</td></tr>
+    </table>
+    <p style="font-size:0.85rem; color:#64748b;">
+        Con restricción de no-negatividad (solo posiciones largas), la frontera eficiente se desplaza hacia la derecha, incrementando el costo en términos de varianza para un mismo nivel de retorno.
+    </p>
+
+    <h3>4.3 Desempeño vs Benchmark</h3>
+    <div class="metric-grid">
+        <div class="metric-card"><div class="label">Alpha de Jensen</div><div class="value">-7.92%</div></div>
+        <div class="metric-card"><div class="label">Tracking Error</div><div class="value">19.13%</div></div>
+        <div class="metric-card"><div class="label">Info. Ratio</div><div class="value">-0.41</div></div>
+        <div class="metric-card"><div class="label">Máx. Drawdown</div><div class="value">-14.32%</div></div>
+    </div>
+
+    <h3>4.4 Modelo ML — Random Forest</h3>
+    <div class="metric-grid">
+        <div class="metric-card"><div class="label">Accuracy</div><div class="value">52%</div></div>
+        <div class="metric-card"><div class="label">Precisión (Clase 1)</div><div class="value">54%</div></div>
+        <div class="metric-card"><div class="label">Recall (Clase 1)</div><div class="value">60%</div></div>
+        <div class="metric-card"><div class="label">F1-Score</div><div class="value">57%</div></div>
+    </div>
+
+    <h3>4.5 Stress Testing</h3>
+    <table>
+        <tr><th>Escenario</th><th>Pérdida Estimada (%)</th><th>VaR Estresado (%)</th></tr>
+        <tr><td>Shock de tasa +200 pb</td><td>-2.0%</td><td>-4.86%</td></tr>
+        <tr><td>Caída mercado -20%</td><td>-20.0%</td><td>-22.86%</td></tr>
+        <tr><td>Caída mercado -30%</td><td>-30.0%</td><td>-32.86%</td></tr>
+        <tr><td>Shock volatilidad ×2</td><td>-47.1%</td><td>-49.98%</td></tr>
+        <tr><td>Tormenta perfecta</td><td>-22.0%</td><td>-24.86%</td></tr>
+    </table>
+
+    <h3>4.6 Renta Fija — Bono Sintético</h3>
+    <div class="metric-grid">
+        <div class="metric-card"><div class="label">Precio</div><div class="value">$1,039.56</div></div>
+        <div class="metric-card"><div class="label">Duración Macaulay</div><div class="value">7.92 años</div></div>
+        <div class="metric-card"><div class="label">Duración Modificada</div><div class="value">7.74</div></div>
+        <div class="metric-card"><div class="label">Convexidad</div><div class="value">72.71</div></div>
+    </div>
+    <p style="font-size:0.85rem; color:#64748b;">
+        Sensibilidad: ante un shock de +100 pb, el precio cae 7.38% (aprox. lineal con D), 7.74% (D + convexidad), 7.42% (reprice exacto). La aproximación con convexidad mejora la precisión respecto a la lineal.
+    </p>
+</div>
+
+<!-- 5. CONCLUSIONES -->
+<div class="section">
+    <h2>5. Conclusiones y Recomendaciones</h2>
+
+    <div class="highlight">
+        <strong>1. Sobre la gestión del riesgo:</strong> El VaR paramétrico, aunque ampliamente utilizado, subestima el riesgo en activos con colas pesadas. Se recomienda complementarlo siempre con CVaR y backtesting de Kupiec. Los tres métodos de VaR implementados aprueban el backtesting al 95% de confianza para el período analizado, indicando una calibración adecuada.
+    </div>
+
+    <div class="highlight">
+        <strong>2. Sobre la diversificación:</strong> La optimización de Markowitz con restricción de no-negatividad (solo posiciones largas) es la más adecuada para un inversionista minorista. Se recomienda mantener exposición a al menos 5 activos de distintos sectores para capturar los beneficios de la diversificación y reducir el riesgo idiosincrático.
+    </div>
+
+    <div class="highlight">
+        <strong>3. Sobre el modelo ML:</strong> El Random Forest (52% accuracy) supera marginalmente una predicción aleatoria (50%), indicando que los features técnicas contienen cierta señal predictiva. Se recomienda explorar arquitecturas más sofisticadas (LSTM, Gradient Boosting) y features adicionales (volatilidad GARCH, datos macro) para mejorar el desempeño.
+    </div>
+
+    <div class="highlight">
+        <strong>4. Sobre los escenarios de estrés:</strong> El escenario de "Tormenta perfecta" (caída -20% + shock tasa +200 pb) genera una pérdida estimada del 22%, confirmando la vulnerabilidad del portafolio ante crisis sistémicas. Se recomienda mantener un colchón de liquidez equivalente al CVaR bajo el escenario más adverso.
+    </div>
+
+    <div class="conclusion">
+        <strong>Recomendación final:</strong> Mantener el portafolio de máximo Sharpe con rebalanceo trimestral, monitorear el VaR semanalmente con backtesting Kupiec, y utilizar las señales del modelo ML como filtro adicional —no como único criterio— para decisiones de entrada/salida. En entornos de alta volatilidad (EGARCH), reducir exposición a activos con beta > 1.2.
+    </div>
+</div>
+
+<div class="footer">
+    Universidad Santo Tomás · Facultad de Estadística · Teoría del Riesgo · Proyecto Integrador 2026<br>
+    Documento generado automáticamente por RiskLab USTA
+</div>
+
+</div>
+</body>
+</html>
