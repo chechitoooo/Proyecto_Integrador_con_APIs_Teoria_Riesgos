@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Literal
 from enum import Enum
 
@@ -26,6 +26,16 @@ class DistribucionEnum(str, Enum):
 class TickerRequest(BaseModel):
     ticker: str
     periodo: PeriodoEnum = PeriodoEnum.two_years
+
+    @field_validator("ticker")
+    @classmethod
+    def ticker_must_be_valid(cls, v: str) -> str:
+        v = v.strip().upper()
+        if not v or len(v) < 1:
+            raise ValueError("El ticker no puede estar vacio")
+        if len(v) > 10:
+            raise ValueError("El ticker no puede tener mas de 10 caracteres")
+        return v
 
 
 class TecnicoRequest(TickerRequest):
@@ -61,12 +71,48 @@ class VarRequest(BaseModel):
     inversion: float = 10000.0
     n_sims: int = 10000
 
+    @field_validator("confianza")
+    @classmethod
+    def confianza_range(cls, v: float) -> float:
+        if not (0.50 <= v <= 0.999):
+            raise ValueError("La confianza debe estar entre 0.50 y 0.999")
+        return v
+
+    @field_validator("inversion")
+    @classmethod
+    def inversion_positive(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("La inversion debe ser positiva")
+        return v
+
+    @field_validator("confianza")
+    @classmethod
+    def confianza_valida(cls, v):
+        if v <= 0 or v >= 1:
+            raise ValueError("confianza debe estar entre 0 y 1 (exclusivo)")
+        return v
+
 
 class MarkowitzRequest(BaseModel):
     tickers: List[str]
     num_portafolios: int = 10000
     periodo: PeriodoEnum = PeriodoEnum.two_years
     no_short_selling: bool = True
+
+    @field_validator("tickers")
+    @classmethod
+    def at_least_two_tickers(cls, v: List[str]) -> List[str]:
+        v = [t.strip().upper() for t in v]
+        if len(v) < 2:
+            raise ValueError("Se requieren al menos 2 activos para Markowitz")
+        return v
+
+    @field_validator("tickers")
+    @classmethod
+    def al_menos_dos_activos(cls, v):
+        if len(v) < 2:
+            raise ValueError("Se requieren al menos 2 activos")
+        return [t.strip().upper() for t in v]
 
 
 class SenalesRequest(BaseModel):
@@ -101,6 +147,13 @@ class OpcionRequest(BaseModel):
     vencimiento_dias: int = Field(1, ge=1, le=365)
     tasa_libre_riesgo: float = Field(0.045, ge=0, alias="tasa")
     model_config = {"populate_by_name": True}
+
+    @field_validator("vencimiento_dias")
+    @classmethod
+    def vencimiento_valido(cls, v):
+        if v < 1:
+            raise ValueError("vencimiento_dias debe ser al menos 1")
+        return v
 
 
 class StressRequest(BaseModel):
@@ -148,6 +201,7 @@ class GarchResponse(BaseModel):
     distribucion: str
     comparativa_modelos: List[Dict]
     pronostico_volatilidad: List[float]
+    volatilidad_condicional: List[float]
     jb_residuos_pvalor: float
     residuos_std: List[float]
     ewma_volatilidad: List[float]
@@ -169,6 +223,14 @@ class CapmResponse(BaseModel):
     alpha_jensen_pct: float
 
 
+class KupiecResult(BaseModel):
+    excedencias: int
+    excedencias_esp: float
+    lr_uc: float
+    p_valor: float
+    aprueba: bool
+
+
 class VarResponse(BaseModel):
     ticker: str
     confianza: float
@@ -183,11 +245,9 @@ class VarResponse(BaseModel):
     perdida_mc_usd: float
     perdida_cvar_usd: float
     datos_rendimientos: List[float]
-    excedencias_kupiec: int
-    excedencias_esperadas_kupiec: float
-    lr_uc_kupiec: float
-    p_valor_kupiec: float
-    aprueba_kupiec: bool
+    kupiec_parametrico: KupiecResult
+    kupiec_historico: KupiecResult
+    kupiec_montecarlo: KupiecResult
 
 
 class PortafolioOptimo(BaseModel):
@@ -248,9 +308,19 @@ class CurvaResponse(BaseModel):
     beta1: float
     beta2: float
     lambda_: float = Field(alias="lambda")
+    rmse: Optional[float] = None
+    n_puntos: Optional[int] = None
     curva: List[Dict]
     puntos: Optional[List[Dict]] = None
     model_config = {"populate_by_name": True}
+
+
+class SensibilidadItem(BaseModel):
+    shock_bp: int
+    precio_real: float
+    cambio_real_pct: float
+    aprox_duracion_pct: float
+    aprox_duracion_convexidad_pct: float
 
 
 class BonoResponse(BaseModel):
@@ -263,6 +333,7 @@ class BonoResponse(BaseModel):
     vencimiento: int
     valor_nominal: float
     frecuencia: int
+    sensibilidad: Optional[List[SensibilidadItem]] = None
 
 
 class OpcionResponse(BaseModel):
@@ -279,6 +350,10 @@ class OpcionResponse(BaseModel):
     vega: float
     theta_call: float
     rho_call: float
+    paridad_put_call: Optional[Dict] = None
+    volatilidad_implicita: Optional[float] = None
+    curva_payoff: Optional[Dict] = None
+    curvas_delta: Optional[List[Dict]] = None
 
 
 class StressResponse(BaseModel):

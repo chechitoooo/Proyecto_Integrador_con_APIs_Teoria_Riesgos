@@ -2,6 +2,8 @@
 backend/routers/endpoints.py
 Routers FastAPI para los 11 modulos + ML.
 """
+import time
+import functools
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 
@@ -22,11 +24,13 @@ from backend.services.financial import (
     calcular_senales, calcular_macro,
     calcular_ewma, calcular_curva_rendimiento, calcular_bono,
     calcular_opciones, calcular_stress,
+    get_cache_info,
 )
 
 from backend.services.ml_service import MLService
-from backend.models.orm import PredictionLog
+from backend.models.orm import PredictionLog, SignalLog
 from backend.database import get_db
+import pandas as pd
 
 router_utils = APIRouter(prefix="/api/utils", tags=["Utils"])
 router_tecnico = APIRouter(prefix="/api/tecnico", tags=["Modulo 1 - Tecnico"])
@@ -43,6 +47,18 @@ router_stress = APIRouter(prefix="/api/stress", tags=["Modulo 11 - Stress Testin
 router_ml = APIRouter(prefix="/api/ml", tags=["ML"])
 
 svc = MLService()
+
+
+def log_latency(func):
+    """Decorador propio: mide y loguea latencia de inferencia del modelo ML."""
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        result = func(*args, **kwargs)
+        elapsed = time.perf_counter() - start
+        print(f"[ML] /predict latencia: {elapsed*1000:.2f} ms")
+        return result
+    return wrapper
 
 
 # ─── UTILS ────────────────────────────────────────────────────────────────────
@@ -62,6 +78,11 @@ def get_tickers():
             "GLD": "Gold ETF", "BTC-USD": "Bitcoin",
         }
     }
+
+
+@router_utils.get("/cache-status")
+def cache_status():
+    return get_cache_info()
 
 
 # ─── MODULO 1 ─────────────────────────────────────────────────────────────────
@@ -136,18 +157,49 @@ def markowitz(req: MarkowitzRequest):
 # ─── MODULO 7 ─────────────────────────────────────────────────────────────────
 
 @router_senales.post("/panel", response_model=SenalesResponse)
-def senales(req: SenalesRequest):
+def senales(req: SenalesRequest, db: Session = Depends(get_db)):
     try:
-        return calcular_senales(req.ticker, req.rsi_up, req.rsi_down)
+        result = calcular_senales(req.ticker, req.rsi_up, req.rsi_down)
+        for sig in result["senales"]:
+            log = SignalLog(
+                ticker=req.ticker,
+                indicador=sig["indicador"],
+                estado=sig["estado"],
+                descripcion=sig["descripcion"],
+                color=sig["color"],
+            )
+            db.add(log)
+        db.commit()
+        return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router_senales.get("/historial")
+def historial_senales(ticker: str = None, limit: int = 20, db: Session = Depends(get_db)):
+    q = db.query(SignalLog).order_by(SignalLog.id.desc())
+    if ticker:
+        q = q.filter(SignalLog.ticker == ticker.upper())
+    logs = q.limit(limit).all()
+    return [{"ticker": l.ticker, "fecha": str(l.fecha), "indicador": l.indicador,
+             "estado": l.estado, "descripcion": l.descripcion, "color": l.color} for l in logs]
 
 
 # ─── MODULO 8 ─────────────────────────────────────────────────────────────────
 
 @router_macro.get("/indicadores")
-def indicadores_macro():
-    return {"rf_10y_pct": 0.0432, "cpi_pct": 0.032, "trm_cop_usd": 4100, "fed_funds_pct": 0.0525}
+async def indicadores_macro():
+    import yfinance as yf
+    rf_val = 0.0432
+    try:
+        df = yf.download("^TNX", period="5d", auto_adjust=False, progress=False)
+        if df is not None and not df.empty:
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+            rf_val = float(df["Close"].iloc[-1]) / 100
+    except Exception:
+        pass
+    return {"rf_10y_pct": round(rf_val, 4), "cpi_pct": 0.032, "trm_cop_usd": 4100, "fed_funds_pct": 0.0525}
 
 
 @router_macro.post("/benchmark", response_model=MacroResponse)
@@ -199,7 +251,8 @@ def stress(req: StressRequest):
 # ─── ML ───────────────────────────────────────────────────────────────────────
 
 @router_ml.post("/predict", response_model=PredictResponse)
-def predict(req: PredictRequest, db: Session = Depends(get_db)):
+@log_latency
+async def predict(req: PredictRequest, db: Session = Depends(get_db)):
     result = svc.get_prediccion(req.ticker)
     if "error" in result:
         raise HTTPException(status_code=503, detail=result["error"])

@@ -735,26 +735,37 @@ elif opcion == "🛡️ Modulo 5 - VaR":
                 })
                 st.dataframe(tabla.set_index("Metodologia"), use_container_width=True)
 
-                section_title("", "Backtesting de Kupiec")
-                if "excedencias_kupiec" in data:
+                section_title("", "Backtesting de Kupiec (POF) - 3 metodos")
+                if "kupiec_historico" in data:
                     T = len(data.get("datos_rendimientos", []))
-                    kup_n = data["excedencias_kupiec"]
-                    kup_lr = data["lr_uc_kupiec"]
-                    kup_p = data["p_valor_kupiec"]
-                    kup_ok = data["aprueba_kupiec"]
-                    freq_obs = kup_n / T if T > 0 else 0
                     freq_teorica = 1 - confianza
 
-                    k1, k2, k3, k4 = st.columns(4)
-                    k1.metric("Excedencias", str(kup_n))
-                    k2.metric("Dias (T)", str(T))
-                    k3.metric("LR_POF", f"{kup_lr:.4f}")
-                    k4.metric("p-valor Kupiec", fmt_pval(kup_p))
-
-                    if not kup_ok:
-                        badge_html(f"Kupiec rechaza el VaR (frec obs={freq_obs:.2%} vs teorica={freq_teorica:.2%})", "error")
+                    metodos_k = [
+                        ("Parametrico", data.get("kupiec_parametrico", {})),
+                        ("Historico", data.get("kupiec_historico", {})),
+                        ("Montecarlo", data.get("kupiec_montecarlo", {})),
+                    ]
+                    rows_k = []
+                    for nombre, kup in metodos_k:
+                        if not kup:
+                            continue
+                        n = kup.get("excedencias", 0)
+                        freq_obs = n / T if T > 0 else 0
+                        rows_k.append({
+                            "Metodo": nombre,
+                            "Excedencias (N)": n,
+                            "Frec. observada": f"{freq_obs:.4%}",
+                            "LR_POF": round(kup.get("lr_uc", 0), 4),
+                            "p-valor": round(kup.get("p_valor", 1), 4),
+                            "Aprueba?": "Si" if kup.get("aprueba", False) else "No",
+                        })
+                    if rows_k:
+                        st.dataframe(pd.DataFrame(rows_k).set_index("Metodo"), use_container_width=True)
+                        st.caption("LR_POF critico al 95%: 3.84. Si p-valor > 0.05, no se rechaza el modelo.")
                     else:
-                        badge_html(f"Kupiec no rechaza el VaR al {confianza:.0%}", "success")
+                        st.caption("Datos de Kupiec no disponibles.")
+                else:
+                    st.caption("Backtesting Kupiec no disponible.")
     else:
         st.info("Selecciona activos y pulsa Calcular.")
 
@@ -886,6 +897,14 @@ elif opcion == "🚦 Modulo 7 - Senales":
                         </div>
                         """, unsafe_allow_html=True)
                 badge_html("Senales automaticas — no constituyen recomendacion de inversion.", "warning")
+
+                # Signal history from DB
+                with st.expander(f"Historial de senales - {ticker}", expanded=False):
+                    hist = api_get(f"/api/senales/historial?ticker={ticker}&limit=10")
+                    if hist and isinstance(hist, list) and len(hist) > 0:
+                        st.dataframe(pd.DataFrame(hist), use_container_width=True)
+                    else:
+                        st.caption("No hay historial de senales persistido.")
     else:
         st.info("Selecciona activos y pulsa Actualizar.")
 
@@ -982,7 +1001,7 @@ elif opcion == "📐 Modulo 9 - Renta Fija":
             df_modelo = pd.DataFrame(curva_data["curva"])
             fig_curva.add_trace(go.Scatter(x=df_modelo["vencimiento"], y=df_modelo["tasa"],
                 mode="lines", name="Modelo Nelson-Siegel", line=dict(color=ACCENT, width=3, dash="dash")))
-        fig_curva.update_layout(title="Curva de Rendimiento Spot",
+        fig_curva.update_layout(title=f"Curva de Rendimiento Spot (RMSE={curva_data.get('rmse', 'N/A')})",
             xaxis_title="Vencimiento (Anos)", yaxis_title="Tasa (%)", height=400, **PLOT_TPL)
         st.plotly_chart(fig_curva, use_container_width=True)
 
@@ -998,6 +1017,17 @@ elif opcion == "📐 Modulo 9 - Renta Fija":
             c4.metric("Convexidad", f"{bono_data.get('convexidad', 0):.2f}")
             dmod = bono_data.get("duracion_modificada", 0)
             st.info(f"Una duracion modificada de {dmod:.2f} implica que si las tasas suben 1%, el precio del bono caera aproximadamente un {dmod:.2f}%.")
+
+            if "sensibilidad" in bono_data and bono_data["sensibilidad"]:
+                st.markdown("### Sensibilidad ante shocks de tasa")
+                df_sens = pd.DataFrame(bono_data["sensibilidad"])
+                df_sens = df_sens.rename(columns={
+                    "shock_bp": "Shock (pb)", "cambio_real_pct": "Reprice exacto (%)",
+                    "aprox_duracion_pct": "Solo Duracion (%)",
+                    "aprox_duracion_convexidad_pct": "Duracion + Convexidad (%)",
+                })
+                st.dataframe(df_sens[["Shock (pb)", "Solo Duracion (%)", "Duracion + Convexidad (%)", "Reprice exacto (%)"]].set_index("Shock (pb)").style.format("{:.4f}"), use_container_width=True)
+                st.caption("Comparacion de 3 aproximaciones: (a) lineal con duracion, (b) duracion + convexidad, (c) reprice exacto descontando flujos.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1049,7 +1079,15 @@ elif opcion == "🎲 Modulo 10 - Opciones":
                 col_p1.metric("Precio Call", f"${bs_data.get('call_price', 0):,.2f}")
                 col_p2.metric("Precio Put", f"${bs_data.get('put_price', 0):,.2f}")
                 col_s.metric("Precio Spot (S)", f"${bs_data.get('precio_spot', 0):,.2f}")
-                st.markdown(f"**Volatilidad historica (sigma):** {bs_data.get('sigma', 0):.4f} · **T (anos):** {bs_data.get('T_anios', 0):.4f}")
+                sigma_hist = bs_data.get("sigma", 0)
+                sigma_imp = bs_data.get("volatilidad_implicita", None)
+                st.markdown(f"**Volatilidad historica:** {sigma_hist:.4f}" +
+                    (f" | **Volatilidad implicita:** {sigma_imp:.4f} (Newton-Raphson)" if sigma_imp else ""))
+
+                # Paridad put-call
+                par = bs_data.get("paridad_put_call")
+                if par:
+                    st.markdown(f"**Paridad Put-Call:** C-P = {par.get('lhs', 0):.4f} vs S-Ke^(-rT) = {par.get('rhs', 0):.4f} | Error: {par.get('error', 0):.2e}")
 
                 st.markdown("### Las 5 Griegas")
                 df_greeks = pd.DataFrame({
@@ -1064,7 +1102,29 @@ elif opcion == "🎲 Modulo 10 - Opciones":
                     ]
                 })
                 st.dataframe(df_greeks.style.format({"Valor": "{:.4f}"}), use_container_width=True)
-                st.caption("Theta y Rho suelen ser valores pequenos: cambio por dia o por 1% de tasa respectivamente.")
+
+                # Payoff charts
+                payoff = bs_data.get("curva_payoff")
+                if payoff:
+                    st.markdown("### Curva de Payoff a Vencimiento")
+                    fig_po = go.Figure()
+                    fig_po.add_trace(go.Scatter(x=payoff["spot"], y=payoff["payoff_call"], name="Payoff Call", line=dict(color=SUCCESS)))
+                    fig_po.add_trace(go.Scatter(x=payoff["spot"], y=payoff["payoff_put"], name="Payoff Put", line=dict(color=DANGER)))
+                    fig_po.add_trace(go.Scatter(x=payoff["spot"], y=payoff["precio_call"], name="Precio Call (hoy)", line=dict(color=CYAN, dash="dot")))
+                    fig_po.add_trace(go.Scatter(x=payoff["spot"], y=payoff["precio_put"], name="Precio Put (hoy)", line=dict(color=WARNING, dash="dot")))
+                    fig_po.update_layout(title="Payoff + Precio vs Spot", xaxis_title="Spot (S)", yaxis_title="Valor", height=380, **PLOT_TPL)
+                    st.plotly_chart(fig_po, use_container_width=True)
+
+                # Delta vs spot
+                curvas_d = bs_data.get("curvas_delta")
+                if curvas_d:
+                    st.markdown("### Delta Call vs Spot (distintos T)")
+                    fig_d = go.Figure()
+                    for cd in curvas_d:
+                        fig_d.add_trace(go.Scatter(x=cd["spot"], y=cd["delta"], name=f"T={cd['T_anios']}"))
+                    fig_d.update_layout(title="Delta convergiendo a step function", xaxis_title="Spot (S)", yaxis_title="Delta", height=350, **PLOT_TPL)
+                    st.plotly_chart(fig_d, use_container_width=True)
+                st.caption("Theta y Rho suelen ser valores pequenos.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1097,6 +1157,32 @@ elif opcion == "⚠️ Modulo 11 - Stress Testing":
                         color="perdida_usd", color_continuous_scale="Reds")
                     fig_stress.update_layout(**PLOT_TPL)
                     st.plotly_chart(fig_stress, use_container_width=True)
+
+            # VaR base vs estresado comparison
+            if "escenarios" in stress_data and "var_base_pct" in stress_data:
+                st.markdown("### VaR Base vs VaR Estresado")
+                var_base = stress_data["var_base_pct"]
+                esc_names = [e["nombre"] for e in stress_data["escenarios"]]
+                var_stress = [e["var_estresado_pct"] for e in stress_data["escenarios"]]
+                fig_var = go.Figure()
+                fig_var.add_trace(go.Bar(x=esc_names, y=var_stress, name="VaR Estresado", marker_color=DANGER))
+                fig_var.add_hline(y=var_base, line_dash="dash", line_color=CYAN, annotation_text=f"VaR Base: {var_base:.4f}")
+                fig_var.update_layout(title="Comparacion VaR Base vs Estresado", yaxis_title="VaR (%)", height=350, **PLOT_TPL)
+                st.plotly_chart(fig_var, use_container_width=True)
+
+            # Heatmap activo x escenario
+            if "heatmap_activos" in stress_data:
+                st.markdown("### Heatmap de Sensibilidad (Activo x Escenario)")
+                hm = stress_data["heatmap_activos"]
+                esc_names = list(hm.keys())
+                tickers_hm = list(hm[esc_names[0]].keys()) if esc_names else []
+                hm_data = {t: [hm[e][t] for e in esc_names] for t in tickers_hm}
+                fig_hm = px.imshow(list(hm_data.values()), x=esc_names, y=tickers_hm,
+                    labels={"x": "Escenario", "y": "Activo", "color": "Impacto"},
+                    title="Impacto por activo en cada escenario",
+                    color_continuous_scale="RdBu_r", text_auto=".3f")
+                fig_hm.update_layout(height=350, **PLOT_TPL)
+                st.plotly_chart(fig_hm, use_container_width=True)
 
             badge_html("El Stress Testing revela la vulnerabilidad del portafolio ante eventos raros que el VaR parametrico podria subestimar.", "warning")
         else:
