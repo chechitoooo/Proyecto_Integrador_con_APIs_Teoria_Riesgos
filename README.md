@@ -1,157 +1,196 @@
-# 📊 Dashboard de Análisis Financiero — Teoría de Riesgo
+# RiskLab USTA — Proyecto Integrador Teoría del Riesgo
 
-**Proyecto Final · Teoría de Riesgo · Profesor: Javier Sierra**
-
-**Autores:** Sergio David Huertas Ramírez · Sergio Andrés Prieto Orjuela
+**Autores:** Sergio David Huertas Ramírez · Sergio Andrés Prieto Orjuela  
+**Profesor:** Javier Mauricio Sierra  
+**Materia:** Teoría del Riesgo · Python para APIs e IA  
+**Universidad Santo Tomás** — Facultad de Estadística — 2026
 
 ---
 
 ## Descripción
 
-Dashboard interactivo de análisis financiero con arquitectura desacoplada:
+Sistema integral de análisis de riesgo financiero compuesto por un backend FastAPI con persistencia en SQLite, un componente de machine learning (Random Forest + patrón Singleton) y un tablero interactivo Streamlit. El sistema permite analizar un portafolio de 10 activos aplicando 11 módulos de riesgo: indicadores técnicos, rendimientos, volatilidad (EWMA + GARCH), CAPM, VaR con backtesting Kupiec, optimización de Markowitz con programación cuadrática, señales algorítmicas, comparativa macro/benchmark, valoración de renta fija y opciones, y stress testing.
 
-- **Backend (FastAPI):** 9 endpoints REST con toda la lógica de cálculo financiero, validación Pydantic, inyección de dependencias y documentación automática en `/docs`.
-- **Frontend (Streamlit):** Dashboard que consume el backend exclusivamente vía HTTP — no ejecuta cálculos directamente.
-- **Datos:** Yahoo Finance en tiempo real a través de `yfinance`. **No se requieren API keys.**
+## Arquitectura — Cinco Capas
 
-| # | Módulo | Descripción |
-|---|--------|-------------|
-| 1 | Análisis Técnico | SMA, EMA, RSI, MACD, Bollinger |
-| 2 | Rendimientos | Estadísticas descriptivas, Jarque-Bera, Shapiro-Wilk, Q-Q |
-| 3 | ARCH/GARCH | ARCH(1), GARCH(1,1), EGARCH(1,1), pronóstico de volatilidad |
-| 4 | CAPM y Beta | Regresión OLS, Beta, retorno esperado, clasificación |
-| 5 | VaR y CVaR | Paramétrico, Histórico, Montecarlo (10k sims), Expected Shortfall |
-| 6 | Markowitz | Frontera eficiente, Máximo Sharpe, Mínima Varianza |
-| 7 ★ | Señales | Panel semáforo: MACD, RSI, Bollinger, Medias Móviles |
-| 8 ★ | Macro y Benchmark | Alpha, Tracking Error, Information Ratio vs S&P 500 |
-
----
-
-## Estructura del repositorio
-
-```
-├── backend/
-│   ├── main.py              # Punto de entrada FastAPI
-│   ├── config.py            # BaseSettings + .env
-│   ├── dependencies.py      # Inyección de dependencias (Depends)
-│   ├── .env                 # Variables de entorno
-│   ├── requirements.txt
-│   ├── models/schemas.py    # Modelos Pydantic (Request + Response)
-│   ├── routers/endpoints.py # 9 endpoints por módulo
-│   └── services/financial.py# Lógica de cálculo financiero
-├── frontend/
-│   ├── app.py               # Dashboard Streamlit
-│   
-├── requirements.txt         # Dependencias globales (referencia)
-├── .gitignore
-└── README.md
-```
-
----
+| Capa | Componente | Tecnología |
+|------|-----------|------------|
+| **1. Datos y Persistencia** | Ingesta desde Yahoo Finance + FRED, cache en SQLite, ORM | Python, yfinance, SQLAlchemy |
+| **2. Análisis de Riesgo** | Indicadores técnicos, rendimientos, volatilidad, CAPM, VaR, Markowitz | pandas, numpy, scipy, arch, cvxpy, statsmodels |
+| **3. Renta Fija y Derivados** | Curva Nelson-Siegel, duración/convexidad, Black-Scholes, Greeks, Stress | scipy.optimize, fórmulas analíticas |
+| **4. Machine Learning** | Random Forest classifier + patrón Singleton + log de predicciones | scikit-learn, joblib |
+| **5. Frontend** | Tablero interactivo con 11 módulos, gráficos Plotly | Streamlit, Plotly |
 
 ## Instalación
 
 ```bash
 # 1. Clonar el repositorio
-git clone https://github.com/chechitoooo/proyecto-riesgo.git
-cd proyecto-riesgo
+git clone https://github.com/chechitoooo/Proyecto_Integrador_con_APIs_Teoria_Riesgos.git
+cd Proyecto_Integrador_con_APIs_Teoria_Riesgos
 
-# 2. Entorno virtual y dependencias — Backend
-cd backend
+# 2. Crear entorno virtual (opcional pero recomendado)
 python -m venv venv
-source venv/bin/activate          # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+venv\Scripts\activate    # Windows
+# source venv/bin/activate  # macOS/Linux
 
-# 3. Entorno virtual y dependencias — Frontend (nueva terminal)
-cd frontend
-python -m venv venv
-source venv/bin/activate
+# 3. Instalar dependencias
 pip install -r requirements.txt
 ```
 
----
+## Variables de Entorno
 
-## Variables de entorno
-
-No se requieren API keys externas. Solo ajusta `backend/.env`:
-
-```env
-APP_NAME="Dashboard Financiero API"
-APP_VERSION="1.0.0"
-DEBUG=True
-DEFAULT_PERIOD="2y"
-DEFAULT_TICKER="AAPL"
-RF_RATE=0.04
-MONTE_CARLO_SIMS=10000
-```
-
-Si el archivo no existe, la app usa los valores por defecto de `config.py`.
-
----
+No se requieren API keys. El proyecto utiliza **yfinance** (acceso gratuito a Yahoo Finance sin autenticación). La tasa libre de riesgo se obtiene del treasury yield ^TNX vía yfinance. Para configurar la URL del backend desde el frontend, modificar la variable `API_BASE` en `frontend/app.py` (por defecto: `http://localhost:8000`).
 
 ## Ejecución
 
-**Terminal 1 — Backend:**
+### Backend (FastAPI)
+
 ```bash
-cd backend
-source venv/bin/activate
-uvicorn main:app --reload --port 8000
+uvicorn backend.main:app --reload --port 8000
 ```
 
-**Terminal 2 — Frontend:**
+La documentación interactiva estará disponible en:
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+### Frontend (Streamlit)
+
 ```bash
-cd frontend
-source venv/bin/activate
-streamlit run app.py
+streamlit run frontend/app.py
 ```
 
-- Dashboard: [http://localhost:8501](http://localhost:8501)
-- API Docs (Swagger): [http://localhost:8000/docs](http://localhost:8000/docs)
+Abrir http://localhost:8501 en el navegador.
 
-> El backend debe estar corriendo **antes** de abrir el frontend.
+> Si el backend corre en otro puerto, configurar con variable de entorno:
+> ```bash
+> set API_BASE=http://localhost:8001 && streamlit run frontend/app.py
+> ```
 
----
+## Modelo Machine Learning
 
-## Endpoints principales
+### Propósito Analítico
 
-| Método | Endpoint | Módulo |
-|--------|----------|--------|
-| `GET`  | `/api/utils/health` | Health check |
-| `GET`  | `/api/utils/tickers` | Activos disponibles |
-| `POST` | `/api/tecnico/indicadores` | Módulo 1 — Técnico |
-| `POST` | `/api/rendimientos/estadisticas` | Módulo 2 — Rendimientos |
-| `POST` | `/api/garch/volatilidad` | Módulo 3 — GARCH |
-| `POST` | `/api/capm/beta` | Módulo 4 — CAPM |
-| `POST` | `/api/var/calcular` | Módulo 5 — VaR / CVaR |
-| `POST` | `/api/markowitz/frontera` | Módulo 6 — Markowitz |
-| `POST` | `/api/senales/panel` | Módulo 7 — Señales |
-| `POST` | `/api/macro/benchmark` | Módulo 8 — Macro |
+Clasificación de la dirección del movimiento diario del precio (sube/baja) utilizando features técnicas derivadas de los datos del proyecto. El modelo actúa como filtro complementario al análisis técnico tradicional.
 
-Documentación completa con schemas y ejemplos: **[localhost:8000/docs](http://localhost:8000/docs)**
+### Features
+- `ret_1d`: retorno diario
+- `ret_5d`: retorno a 5 días
+- `vol_20d`: volatilidad rodante de 20 días
+- `RSI`: Relative Strength Index (14 períodos)
+- `MACD`: Moving Average Convergence Divergence
 
----
+### Algoritmo
+Random Forest Classifier con 200 estimadores (scikit-learn).
 
-## Activos seleccionados
+### Entrenamiento
 
-| Ticker | Empresa | Sector | Justificación |
-|--------|---------|--------|---------------|
-| `AAPL` | Apple | Tecnología | Mayor cap. del S&P 500; referente de análisis técnico |
-| `MSFT` | Microsoft | Software / Cloud | Líder en nube; ideal para CAPM y correlaciones |
-| `GOOGL` | Alphabet | Publicidad / IA | Contraste sectorial en Markowitz vs AAPL/MSFT |
-| `AMZN` | Amazon | E-commerce / Cloud | Diversificación real: retail + infraestructura |
-| `TSLA` | Tesla | Vehículos Eléctricos | Beta elevado; demuestra activos agresivos y alta volatilidad |
-| `NVDA` | NVIDIA | Semiconductores / IA | Boom de IA; mayor crecimiento reciente, alto VaR |
-| `JPM` | JPMorgan | Sector Financiero | Comportamiento anticíclico respecto a tech |
-| `BAC` | Bank of America | Sector Financiero | Sensibilidad a tasas; complementa JPM |
-| `GLD` | SPDR Gold ETF | Materias Primas | Activo refugio; reduce volatilidad en Markowitz |
-| `BTC-USD` | Bitcoin | Criptomonedas | Alta asimetría y colas pesadas; ilustra hechos estilizados |
+```bash
+python backend/ml/train.py
+```
 
-**Criterios:** Diversificación sectorial, contraste de perfiles de riesgo (β bajo a alto), liquidez y más de 5 años de historia en Yahoo Finance.
+El modelo se entrena con datos históricos de 5 activos (AAPL, MSFT, GOOGL, AMZN, TSLA) a 2 años y se serializa en `backend/ml/model.joblib`. El modelo incluido en el repositorio ya está entrenado y listo para usar.
 
----
+### Servicio
 
-## Uso de herramientas de IA
+El modelo se carga usando el **patrón Singleton** (carga única al iniciar el servidor) y se expone vía el endpoint `POST /api/ml/predict`. Cada predicción se persiste en la tabla `prediction_logs` para trazabilidad. Un decorador propio (`@log_latency`) mide el tiempo de inferencia en cada request.
 
-Durante el desarrollo se utilizó **Claude (Anthropic)** como asistente para la generación del esqueleto de la arquitectura FastAPI, corrección de bugs en Streamlit (`DeltaGenerator`), diseño del CSS.
+### Desempeño
 
-Todo el código generado fue revisado, comprendido y ajustado por el equipo.
+| Métrica | Valor |
+|---------|-------|
+| Accuracy | 52% |
+| Precisión (sube) | 54% |
+| Recall (sube) | 60% |
+| F1-Score | 57% |
+
+## Activos Seleccionados
+
+| Ticker | Nombre | Sector |
+|--------|--------|--------|
+| AAPL | Apple Inc. | Tecnología |
+| MSFT | Microsoft Corp. | Tecnología |
+| GOOGL | Alphabet Inc. | Tecnología |
+| AMZN | Amazon.com Inc. | Tecnología/Consumo |
+| TSLA | Tesla Inc. | Tecnología/Automotriz |
+| NVDA | NVIDIA Corp. | Tecnología/Semiconductores |
+| JPM | JPMorgan Chase | Financiero |
+| BAC | Bank of America | Financiero |
+| GLD | SPDR Gold ETF | Commodities |
+| BTC-USD | Bitcoin USD | Criptoactivo |
+
+**Justificación:** Se seleccionaron activos de distintos sectores (tecnología, financiero, commodities, criptoactivos) para evaluar el impacto de la diversificación sectorial en el perfil de riesgo del portafolio y analizar cómo diferentes betas, volatilidades y correlaciones interactúan en la frontera eficiente de Markowitz.
+
+## Endpoints de la API
+
+| Endpoint | Método | Módulo | Descripción |
+|----------|--------|--------|-------------|
+| `/api/utils/health` | GET | — | Estado del backend |
+| `/api/utils/tickers` | GET | — | Lista de activos disponibles |
+| `/api/utils/cache-status` | GET | — | Estado del cache de datos |
+| `/api/tecnico/indicadores` | POST | 1 | Indicadores técnicos (6) |
+| `/api/rendimientos/estadisticas` | POST | 2 | Rendimientos y pruebas normalidad |
+| `/api/garch/volatilidad` | POST | 3 | GARCH + EWMA + pronóstico |
+| `/api/garch/ewma` | POST | 3 | EWMA individual |
+| `/api/capm/beta` | POST | 4 | Beta, CAPM, desempeño completo |
+| `/api/var/calcular` | POST | 5 | VaR (3 métodos) + CVaR + Kupiec |
+| `/api/markowitz/frontera` | POST | 6 | Frontera eficiente (QP) |
+| `/api/senales/panel` | POST | 7 | Señales algorítmicas |
+| `/api/senales/historial` | GET | 7 | Historial de señales persistido |
+| `/api/macro/indicadores` | GET | 8 | Indicadores macroeconómicos |
+| `/api/macro/benchmark` | POST | 8 | Comparativa vs benchmark |
+| `/api/renta-fija/curva` | GET | 9 | Curva Nelson-Siegel |
+| `/api/renta-fija/bono` | POST | 9 | Valoración bono + sensibilidad |
+| `/api/opciones/valorar` | POST | 10 | Black-Scholes + Greeks anidados |
+| `/api/stress/calcular` | POST | 11 | Stress testing |
+| `/api/ml/predict` | POST | ML | Predicción ML |
+| `/api/ml/historial` | GET | ML | Historial de predicciones |
+
+## Estructura del Proyecto
+
+```
+proyecto/
+├── backend/
+│   ├── main.py              # FastAPI app
+│   ├── config.py            # BaseSettings
+│   ├── database.py          # SQLAlchemy engine + session
+│   ├── db/
+│   │   └── __init__.py
+│   ├── models/
+│   │   ├── orm.py           # Asset, Price, Portfolio, PredictionLog, SignalLog
+│   │   └── schemas.py       # Pydantic v2 (requests + responses)
+│   ├── services/
+│   │   ├── financial.py     # 11 módulos de lógica financiera
+│   │   └── ml_service.py    # Servicio ML
+│   ├── ml/
+│   │   ├── train.py         # Entrenamiento offline
+│   │   ├── predictor.py     # Singleton predictor + @log_latency
+│   │   └── model.joblib     # Modelo serializado
+│   └── routers/
+│       ├── endpoints.py     # 16 endpoints REST
+│       └── dependencies.py  # Depends
+├── frontend/
+│   └── app.py               # Dashboard Streamlit (11 módulos)
+├── requirements.txt
+└── Informe_Ejecutivo.html   # Informe ejecutivo del proyecto
+```
+
+## Stack Tecnológico
+
+- **Python** 3.11+
+- **Backend:** FastAPI, Pydantic v2, SQLAlchemy, uvicorn
+- **Análisis:** pandas, numpy, scipy, statsmodels, arch, cvxpy
+- **ML:** scikit-learn, joblib
+- **Frontend:** Streamlit, Plotly
+- **Datos:** yfinance, requests
+
+## Uso de Herramientas de IA
+
+Durante el desarrollo de este proyecto se utilizó **OpenCode** (DeepSeek v4) como asistente de programación para:
+
+- Depuración y corrección de errores en tiempo de ejecución
+- Refactorización del código backend (servicios financieros, schemas, ORM)
+- Rediseño completo del frontend (CSS, tipografía, paleta de colores)
+- Implementación de funcionalidades avanzadas: Kupiec en 3 métodos, Greeks anidados, volatilidad implícita por Newton-Raphson, sensibilidad de bonos con 3 aproximaciones, descomposición de varianza CAPM
+- Verificación integral contra la rúbrica de evaluación
+
+Todo el código fue revisado, comprendido y validado por los autores. La IA actuó como acelerador del desarrollo, no como sustituto del criterio técnico.
