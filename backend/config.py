@@ -3,7 +3,7 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    app_name: str = "Dashboard Financiero API"
+    app_name: str = "RiskLab API"
     app_version: str = "1.0.0"
     debug: bool = True
     default_period: str = "2y"

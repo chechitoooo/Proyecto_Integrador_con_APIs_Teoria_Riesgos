@@ -1266,17 +1266,23 @@ elif opcion == "🛡️  Módulo 5 · VaR y CVaR":
 
                 # ── Backtesting Kupiec ──────────────────────────────────────
                 section_title("🧪", "Backtesting de Kupiec (Proportion of Failures)")
-                if "kupiec" in data:
-                    kup = data["kupiec"]
-                    k1, k2, k3, k4 = st.columns(4)
-                    k1.metric("Excedencias observadas (N)", str(kup.get("n_excedencias", "N/A")))
-                    k2.metric("Días backtest (T)", str(kup.get("dias_backtest", "≥250")))
-                    k3.metric("LR_POF estadístico", f"{kup.get('lr_pof', 0):.4f}")
-                    k4.metric("p-valor Kupiec", fmt_pval(kup.get("pvalor")))
+                if "excedencias_kupiec" in data:
+                    T = len(data.get("datos_rendimientos", []))
+                    kup_n = data["excedencias_kupiec"]
+                    kup_esp = data["excedencias_esperadas_kupiec"]
+                    kup_lr = data["lr_uc_kupiec"]
+                    kup_p = data["p_valor_kupiec"]
+                    kup_ok = data["aprueba_kupiec"]
 
-                    rechaza = kup.get("rechaza_h0", kup.get("lr_pof", 0) > 3.84)
+                    k1, k2, k3, k4 = st.columns(4)
+                    k1.metric("Excedencias observadas (N)", str(kup_n))
+                    k2.metric("Días backtest (T)", str(T))
+                    k3.metric("LR_POF estadístico", f"{kup_lr:.4f}")
+                    k4.metric("p-valor Kupiec", fmt_pval(kup_p))
+
+                    rechaza = not kup_ok
                     freq_teorica = 1 - confianza
-                    freq_obs = kup.get("frecuencia_observada", kup.get("n_excedencias", 0) / kup.get("dias_backtest", 250))
+                    freq_obs = kup_n / T if T > 0 else 0
 
                     with st.expander("📊 Interpretación Kupiec detallada", expanded=True):
                         st.markdown(f"""
@@ -1284,7 +1290,7 @@ elif opcion == "🛡️  Módulo 5 · VaR y CVaR":
 
 - **H₀:** La frecuencia de excedencias es consistente con el nivel de confianza ({confianza:.0%}) → Frecuencia teórica = **{freq_teorica:.2%}**
 - **Frecuencia observada:** {freq_obs:.2%}
-- **LR_POF = {kup.get('lr_pof', 0):.4f}** (valor crítico χ²(1) al 95%: **3.84**)
+- **LR_POF = {kup_lr:.4f}** (valor crítico χ²(1) al 95%: **3.84**)
 - **Decisión:** {"❌ Se rechaza H₀ — el modelo **{'subestima' if freq_obs > freq_teorica else 'sobrestima'}** el riesgo." if rechaza else "✅ No se rechaza H₀ — el modelo es coherente con la frecuencia de excedencias."}
                         """)
                     if rechaza:
@@ -1299,14 +1305,8 @@ elif opcion == "🛡️  Módulo 5 · VaR y CVaR":
                             f"✅ Kupiec no rechaza el VaR. El modelo es estadísticamente válido al {confianza:.0%}.",
                             "success"
                         )
-
-                    # Tabla Kupiec por metodología
-                    if "kupiec_por_metodo" in data:
-                        st.markdown("**Aplicación de Kupiec por metodología:**")
-                        kdf = pd.DataFrame(data["kupiec_por_metodo"])
-                        st.dataframe(kdf.set_index("metodo") if "metodo" in kdf.columns else kdf, use_container_width=True)
                 else:
-                    st.caption("ℹ️ El backend no retornó backtesting Kupiec. Agrega la clave `kupiec` al response de /api/var/calcular.")
+                    st.caption("ℹ️ El backend no retornó backtesting Kupiec.")
 
                 # ── Sensibilidad a colas ────────────────────────────────────
                 with st.expander("📖 Sensibilidad a Colas y Supuestos Distribucionales"):
@@ -1674,8 +1674,8 @@ elif opcion == "📐 Módulo 9 · Renta Fija ★":
                                            marker=dict(size=10, color=PRIMARY)))
         
         # Curva ajustada (Modelo)
-        if "curva_ajustada" in curva_data:
-            df_modelo = pd.DataFrame(curva_data["curva_ajustada"])
+        if "curva" in curva_data:  # Corregido: backend retorna "curva"
+            df_modelo = pd.DataFrame(curva_data["curva"])
             fig_curva.add_trace(go.Scatter(x=df_modelo["vencimiento"], y=df_modelo["tasa"], 
                                            mode="lines", name="Modelo Nelson-Siegel",
                                            line=dict(color=ACCENT, width=3, dash="dash")))
@@ -1720,28 +1720,26 @@ elif opcion == "🎲 Módulo 10 · Opciones ★":
         calcular = st.button("🔄 Valorar", type="primary", use_container_width=True)
 
     if calcular:
-        payload = {"ticker": ticker_op, "strike": strike, "dias": dias, "tasa": tasa}
+        payload = {"ticker": ticker_op, "strike": strike, "vencimiento_dias": dias, "tasa_libre_riesgo": tasa}
         
         with st.spinner("Calculando Black-Scholes..."):
-            bs_data = api_post("/api/opciones/blackscholes", payload)
+            bs_data = api_post("/api/opciones/valorar", payload)
             
         if bs_data:
-            # Precios
             col_p1, col_p2, col_s = st.columns(3)
             col_p1.metric("Precio Call", f"${bs_data.get('call_price', 0):,.2f}", delta_color="normal")
             col_p2.metric("Precio Put", f"${bs_data.get('put_price', 0):,.2f}", delta_color="inverse")
             col_s.metric("Precio Spot (S)", f"${bs_data.get('precio_spot', 0):,.2f}")
-            
-            # Griegas en tabla
+
             st.markdown("### 📊 Las 5 Griegas")
             df_greeks = pd.DataFrame({
                 "Griega": ["Delta (Δ)", "Gamma (Γ)", "Vega (ν)", "Theta (Θ)", "Rho (ρ)"],
                 "Valor": [
-                    bs_data.get("delta", 0), 
-                    bs_data.get("gamma", 0), 
-                    bs_data.get("vega", 0), 
-                    bs_data.get("theta", 0), 
-                    bs_data.get("rho", 0)
+                    bs_data.get("delta_call", 0),
+                    bs_data.get("gamma", 0),
+                    bs_data.get("vega", 0),
+                    bs_data.get("theta_call", 0),
+                    bs_data.get("rho_call", 0)
                 ],
                 "Significado": [
                     "Sensibilidad al precio",
@@ -1751,7 +1749,11 @@ elif opcion == "🎲 Módulo 10 · Opciones ★":
                     "Sensibilidad a tasa interés"
                 ]
             })
-            st.dataframe(df_greeks.style.format("{:.4f}"), use_container_width=True)
+            numeric_cols = df_greeks.select_dtypes(include="number").columns
+            st.dataframe(
+                df_greeks.style.format({col: "{:.4f}" for col in numeric_cols}),
+                use_container_width=True
+            )
             st.caption("📌 *Nota: Theta y Rho suelen ser valores muy pequeños, representan el cambio por día o por 1% de tasa respectivamente.*")
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1767,7 +1769,7 @@ elif opcion == "⚠️ Módulo 11 · Stress Testing ★":
         calcular = st.button("🔄 Ejecutar Stress", type="primary", use_container_width=True)
 
     if calcular and tickers_st:
-        payload = {"tickers": tickers_st, "inversion": inversion}
+        payload = {"tickers": tickers_st, "inversion": inversion, "confianza": 0.99}
         
         with st.spinner("Simulando escenarios de crisis..."):
             stress_data = api_post("/api/stress/calcular", payload)

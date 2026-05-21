@@ -2,35 +2,40 @@ import joblib
 import pathlib
 import numpy as np
 
-class ModeloSingleton:
+
+class ModelPredictor:
     _instance = None
 
-    @classmethod
-    def get(cls):
+    def __new__(cls):
         if cls._instance is None:
-            path = pathlib.Path(__file__).parent / "model.joblib"
-            cls._instance = joblib.load(path)
+            cls._instance = super().__new__(cls)
+            model_path = pathlib.Path(__file__).parent / "model.joblib"
+            cls._model = joblib.load(model_path)
+            print(f"[ML] Modelo cargado: {pathlib.Path(model_path).name}")
         return cls._instance
 
+    def predict(self, features: np.ndarray):
+        return self._model.predict(features)
 
-def predecir(ticker: str, features: dict) -> dict:
-    model = ModeloSingleton.get()
+    def predict_proba(self, features: np.ndarray):
+        return self._model.predict_proba(features)
 
+
+def predecir(ticker: str, features_data: dict) -> dict:
+    predictor = ModelPredictor()
     X = np.array([[
-        features["ret_1d"],
-        features["ret_5d"],
-        features["vol_20d"],
-        features["RSI"],
-        features["MACD"]
+        features_data["ret_1d"],
+        features_data["ret_5d"],
+        features_data["vol_20d"],
+        features_data["RSI"],
+        features_data["MACD"],
     ]])
-
-    pred = int(model.predict(X)[0])
-    proba = model.predict_proba(X)[0]
-
+    pred = int(predictor.predict(X)[0])
+    proba = predictor.predict_proba(X)[0]
     return {
         "ticker": ticker,
         "prediccion": pred,
         "prob_sube": round(float(proba[1]), 4),
         "prob_baja": round(float(proba[0]), 4),
-        "señal": "COMPRA" if pred == 1 else "VENTA",
+        "senal": "COMPRA" if pred == 1 else "VENTA",
     }
