@@ -288,22 +288,41 @@ def calcular_capm(ticker, benchmark, periodo):
     alpha_diario = float(model.params["const"])
     rm_anual = float(data["Market"].mean()) * 252
     expected_return = rf_anual + beta * (rm_anual - rf_anual)
+
+    asset_cum = (1 + data["Asset"]).cumprod()
+    ret_acumulado = float(asset_cum.iloc[-1] - 1)
+    ret_anual = float(data["Asset"].mean()) * 252
+    vol_anual = float(data["Asset"].std()) * np.sqrt(252)
+    tracking_error = float((data["Asset"] - data["Market"]).std() * np.sqrt(252))
+    info_ratio = (ret_anual - rm_anual) / tracking_error if tracking_error > 0 else 0.0
+    peak = asset_cum.expanding().max()
+    max_dd = float((asset_cum / peak - 1).min())
+    sharpe = (ret_anual - rf_anual) / vol_anual if vol_anual > 0 else 0.0
+    var_total = float(data["Asset"].var())
+    var_sistematica = beta**2 * float(data["Market"].var())
+    var_no_sistematica = var_total - var_sistematica
+
     clasificacion = "Agresivo" if beta > 1.1 else ("Defensivo" if beta < 0.9 else "Neutro")
     datos_reg = [
         {"market": round(float(r["Market"]), 6), "asset": round(float(r["Asset"]), 6)}
         for _, r in data.iterrows()
     ]
     return {
-        "ticker": ticker,
-        "benchmark": benchmark,
-        "beta": round(beta, 4),
+        "ticker": ticker, "benchmark": benchmark, "beta": round(beta, 4),
         "retorno_esperado_pct": round(expected_return, 6),
-        "rf_anual_pct": round(rf_anual, 4),
-        "rm_anual_pct": round(rm_anual, 4),
-        "r_squared": round(r2, 4),
-        "alpha_jensen_pct": round(alpha_diario * 252, 6),
-        "clasificacion": clasificacion,
-        "datos_regresion": datos_reg,
+        "rf_anual_pct": round(rf_anual, 4), "rm_anual_pct": round(rm_anual, 4),
+        "r_squared": round(r2, 4), "alpha_jensen_pct": round(alpha_diario * 252, 6),
+        "clasificacion": clasificacion, "datos_regresion": datos_reg,
+        "retorno_acumulado_pct": round(ret_acumulado, 4),
+        "retorno_anual_pct": round(ret_anual, 4),
+        "volatilidad_anual_pct": round(vol_anual, 4),
+        "sharpe_ratio": round(sharpe, 4),
+        "max_drawdown_pct": round(max_dd, 4),
+        "tracking_error_pct": round(tracking_error, 4),
+        "information_ratio": round(info_ratio, 4),
+        "varianza_total": round(var_total, 10),
+        "varianza_sistematica": round(var_sistematica, 10),
+        "varianza_no_sistematica": round(var_no_sistematica, 10),
     }
 
 
@@ -766,9 +785,11 @@ def calcular_opciones(ticker, strike, vencimiento_dias, tasa_libre_riesgo):
         "ticker": ticker, "precio_spot": round(S, 4), "strike": strike,
         "sigma": round(sigma_hist, 4), "T_anios": round(T, 4),
         "call_price": round(float(call_price), 4), "put_price": round(float(put_price), 4),
-        "delta_call": round(delta_call, 4), "delta_put": round(delta_put, 4),
-        "gamma": round(gamma, 6), "vega": round(vega, 4),
-        "theta_call": round(theta_call, 4), "rho_call": round(rho_call, 4),
+        "greeks": {
+            "delta_call": round(delta_call, 4), "delta_put": round(delta_put, 4),
+            "gamma": round(gamma, 6), "vega": round(vega, 4),
+            "theta_call": round(theta_call, 4), "rho_call": round(rho_call, 4),
+        },
         "paridad_put_call": {"lhs": round(float(parity_lhs), 6), "rhs": round(float(parity_rhs), 6), "error": round(float(parity_error), 10)},
         "volatilidad_implicita": round(sigma_imp, 4),
         "curva_payoff": {

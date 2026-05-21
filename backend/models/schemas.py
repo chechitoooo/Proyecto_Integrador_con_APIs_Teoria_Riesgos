@@ -221,6 +221,16 @@ class CapmResponse(BaseModel):
     clasificacion: Literal["Agresivo", "Neutro", "Defensivo"]
     datos_regresion: List[Dict]
     alpha_jensen_pct: float
+    retorno_acumulado_pct: float
+    retorno_anual_pct: float
+    volatilidad_anual_pct: float
+    sharpe_ratio: float
+    max_drawdown_pct: float
+    tracking_error_pct: float
+    information_ratio: float
+    varianza_total: float
+    varianza_sistematica: float
+    varianza_no_sistematica: float
 
 
 class KupiecResult(BaseModel):
@@ -336,6 +346,15 @@ class BonoResponse(BaseModel):
     sensibilidad: Optional[List[SensibilidadItem]] = None
 
 
+class GreeksModel(BaseModel):
+    delta_call: float
+    delta_put: float
+    gamma: float
+    vega: float
+    theta_call: float
+    rho_call: float
+
+
 class OpcionResponse(BaseModel):
     ticker: str
     precio_spot: float
@@ -344,12 +363,7 @@ class OpcionResponse(BaseModel):
     T_anios: float
     call_price: float
     put_price: float
-    delta_call: float
-    delta_put: float
-    gamma: float
-    vega: float
-    theta_call: float
-    rho_call: float
+    greeks: GreeksModel
     paridad_put_call: Optional[Dict] = None
     volatilidad_implicita: Optional[float] = None
     curva_payoff: Optional[Dict] = None

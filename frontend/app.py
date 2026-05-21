@@ -813,18 +813,44 @@ elif opcion == "⚖️ Modulo 4 - CAPM":
                     cls_badge = {"Agresivo": "error", "Defensivo": "success", "Neutro": "info"}
                     badge_html(f"{cls} (beta={data['beta']:.2f})", cls_badge.get(cls, "info"))
 
-                section_title("", "Alpha de Jensen")
-                alpha_j = data.get("alpha_jensen_pct", None)
-                if alpha_j is not None:
-                    st.metric("Alpha de Jensen", f"{alpha_j:.4%}")
-                    if alpha_j > 0:
-                        badge_html(f"Alpha positivo ({alpha_j:.4%}): gestion activa anade valor", "success")
-                    elif alpha_j < 0:
-                        badge_html(f"Alpha negativo ({alpha_j:.4%}): rinde por debajo de CAPM", "error")
-                    else:
-                        badge_html("Alpha ≈ 0: consistente con CAPM", "info")
+                section_title("", "Tabla de Desempeno Completa")
+                df_perf = pd.DataFrame({
+                    "Metrica": ["Rendimiento Acumulado", "Rendimiento Anualizado", "Volatilidad Anual",
+                               "Sharpe Ratio", "Max Drawdown", "Tracking Error", "Information Ratio",
+                               "Alpha de Jensen"],
+                    "Valor": [
+                        f"{data.get('retorno_acumulado_pct', 0):.2%}",
+                        f"{data.get('retorno_anual_pct', 0):.2%}",
+                        f"{data.get('volatilidad_anual_pct', 0):.2%}",
+                        f"{data.get('sharpe_ratio', 0):.4f}",
+                        f"{data.get('max_drawdown_pct', 0):.2%}",
+                        f"{data.get('tracking_error_pct', 0):.2%}",
+                        f"{data.get('information_ratio', 0):.4f}",
+                        f"{data.get('alpha_jensen_pct', 0):.4%}",
+                    ]
+                })
+                st.dataframe(df_perf.set_index("Metrica"), use_container_width=True)
 
-                st.info(f"Con beta = {data['beta']:.2f}, el activo {'amplifica' if data['beta'] > 1 else 'amortigua'} los movimientos del mercado un {abs((data['beta']-1)*100):.1f}%.")
+                var_t = data.get('varianza_total', 0)
+                var_s = data.get('varianza_sistematica', 0)
+                var_n = data.get('varianza_no_sistematica', 0)
+                if var_t > 0:
+                    section_title("", "Descomposicion de Varianza: Sistematico vs No Sistematico")
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Varianza Total", f"{var_t:.8f}")
+                    c2.metric("Sistematica", f"{var_s:.8f}")
+                    c3.metric("No Sistematica", f"{var_n:.8f}")
+                    fig_pie = go.Figure(go.Pie(labels=["Sistematica", "No Sistematica"],
+                        values=[var_s, var_n], marker_colors=[PRIMARY, MUTED], hole=0.5,
+                        textinfo="label+percent"))
+                    fig_pie.update_layout(height=280, **PLOT_TPL)
+                    st.plotly_chart(fig_pie, use_container_width=True)
+                    r2 = data.get('r_squared', 0)
+                    pct_sist = var_s / var_t * 100
+                    badge_html(f"R² = {r2:.2%} de la varianza explicada por el mercado. "
+                              f"El {100-pct_sist:.1f}% restante es riesgo idiosincratico eliminable con diversificacion. "
+                              f"Con beta = {data['beta']:.2f}, este activo {'amplifica' if data['beta'] > 1 else 'amortigua'} "
+                              f"los movimientos del mercado un {abs((data['beta']-1)*100):.1f}%.", "info")
     else:
         st.info("Selecciona activos y pulsa Calcular.")
 
@@ -1255,11 +1281,12 @@ elif opcion == "🎲 Modulo 10 - Opciones":
                     st.markdown(f"**Paridad Put-Call:** C-P = {par.get('lhs', 0):.4f} vs S-Ke^(-rT) = {par.get('rhs', 0):.4f} | Error: {par.get('error', 0):.2e}")
 
                 st.markdown("### Las 5 Griegas")
+                g = bs_data.get("greeks", {})
                 df_greeks = pd.DataFrame({
-                    "Griega": ["Delta (Δ)", "Gamma (Γ)", "Vega (ν)", "Theta (Θ)", "Rho (ρ)"],
+                    "Griega": ["Delta", "Gamma", "Vega", "Theta", "Rho"],
                     "Valor": [
-                        bs_data.get("delta_call", 0), bs_data.get("gamma", 0),
-                        bs_data.get("vega", 0), bs_data.get("theta_call", 0), bs_data.get("rho_call", 0)
+                        g.get("delta_call", 0), g.get("gamma", 0),
+                        g.get("vega", 0), g.get("theta_call", 0), g.get("rho_call", 0)
                     ],
                     "Significado": [
                         "Sensibilidad al precio", "Curvatura (velocidad)",
